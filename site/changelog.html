@@ -62,7 +62,7 @@
         <div class="log-item">
           <div class="log-meta">
             <div class="log-ver">1.1</div>
-            <div class="log-date">2026-11-11 · 已发布至仓库</div>
+            <div class="log-date">2026-11-11 · 已上线</div>
             <span class="log-badge badge-rel">RELEASE</span>
           </div>
           <div class="log-body">
@@ -98,10 +98,11 @@
             <div class="log-group">
               <h4>部署与访问</h4>
               <ul>
-                <li>游戏成品已推送到 <a href="https://github.com/starrysky1418/city-and-metro-starry" target="_blank" rel="noopener">starrysky1418/city-and-metro-starry</a> 的 <code>main</code> 分支，提交 <code>48307c9</code>。仓库存放的是静态成品，无构建步骤，输出目录为仓库根。</li>
-                <li><a href="https://starrysky1418.github.io/city-and-metro-starry/" target="_blank" rel="noopener">GitHub Pages 站点</a>已上线，打开即玩；本站介绍页与更新日志随仓库发布于 <code>/site/</code> 路径。</li>
-                <li>目标域名 <code>city-and-metro-starry.pages.dev</code> 需在 Cloudflare 建立同名 Pages 项目并绑定该仓库后生效；创建前该域名尚无 DNS 记录。项目名、无构建命令、输出目录 <code>/</code> 及自动部署开关见仓库 <code>DEPLOYMENT.md</code>。</li>
-                <li>纯静态部署：无后端、无账号与登录，存档保存在浏览器本地；地图与功能可在同一网址随每次 push 持续更新。</li>
+                <li><strong>正式地址已上线：<a href="https://city-and-metro-starry.pages.dev/" target="_blank" rel="noopener">city-and-metro-starry.pages.dev</a></strong>，打开即玩、无需安装。2026-11-11 创建同名 Cloudflare Pages 项目（生产分支 <code>main</code>）并直传 <strong>127 个静态文件</strong>。</li>
+                <li>游戏成品推送在 <a href="https://github.com/starrysky1418/city-and-metro-starry" target="_blank" rel="noopener">starrysky1418/city-and-metro-starry</a> 的 <code>main</code> 分支；<a href="https://starrysky1418.github.io/city-and-metro-starry/" target="_blank" rel="noopener">GitHub Pages 镜像</a>同步可用。本站介绍页与更新日志发布于 <code>/site/</code>。</li>
+                <li>线上抽查：首页、<code>/site/changelog.html</code>、<code>js/data_ny.js</code>、<code>js/geo_ny.js</code>（5.9 MB）、宣传片（21 MB）均返回 200；缓存与安全响应头生效，未知路径返回 404。</li>
+                <li>仓库内置默认关闭的 Actions 直传工作流；配置 Cloudflare 凭据并打开 <code>CF_DIRECT_UPLOAD</code> 开关后，每次 push 会自动重新部署。项目名、输出目录 <code>/</code> 与操作步骤见仓库 <code>DEPLOYMENT.md</code>。</li>
+                <li>纯静态部署：无后端、无账号与登录，存档保存在浏览器本地。</li>
               </ul>
             </div>
           </div>

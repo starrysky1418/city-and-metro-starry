@@ -4,7 +4,11 @@
 
 ## Starry 版 1.1（2026-11-11）
 
-**发布状态**：成品已推送到 [starrysky1418/city-and-metro-starry](https://github.com/starrysky1418/city-and-metro-starry) 的 `main` 分支（提交 `48307c9`），[GitHub Pages 站点](https://starrysky1418.github.io/city-and-metro-starry/) 已上线、可直接游玩。目标域名 `city-and-metro-starry.pages.dev` 需在 Cloudflare 建立同名 Pages 项目并绑定该仓库后生效；在此之前该域名尚无 DNS 记录。
+**发布状态**：已上线。成品推送到 [starrysky1418/city-and-metro-starry](https://github.com/starrysky1418/city-and-metro-starry) 的 `main` 分支（1.1 内容见 `48307c9`，站点与部署配置见 `c67e99f`），并部署到 Cloudflare Pages 项目 `city-and-metro-starry`（生产分支 `main`）。
+
+- 正式地址：**https://city-and-metro-starry.pages.dev/**（打开即玩，无需安装）
+- 镜像地址：https://starrysky1418.github.io/city-and-metro-starry/ （GitHub Pages 随 `main` 自动构建）
+- 介绍与网页版更新日志：任一地址 + `/site/`；纯文本日志：`/CHANGELOG.md`
 
 ### 地图与历史
 
@@ -26,8 +30,8 @@
 ### 发布与部署
 
 - 发布仓库存放的是静态成品：`index.html` 位于根目录，无打包步骤、无构建命令，输出目录为 `/`；存档保存在浏览器 `localStorage`，无需后端、账号或安装。
-- GitHub Pages 已随 `main` 分支自动构建并上线。介绍站与网页版更新日志随仓库发布于 `/site/`，纯文本日志为 `/CHANGELOG.md`。
-- 为接入 `city-and-metro-starry.pages.dev` 补齐部署配置：`wrangler.jsonc` 项目名改为 `city-and-metro-starry`，发布仓库新增 `.github/workflows/deploy-pages.yml`（默认关闭的直传工作流）、`.assetsignore` 与 `DEPLOYMENT.md`。推荐在 Cloudflare Dashboard 用 Connect to Git 直接绑定仓库，之后每次 push 自动上线。
+- 2026-11-11 在 Cloudflare 创建同名 Pages 项目并直传部署 **127 个静态文件**。线上抽查：首页、`/site/`、`/site/changelog.html`、`js/data_ny.js`、`js/geo_ny.js`（5.9 MB）、宣传片（21 MB）均返回 200；`_headers` 的缓存与安全响应头生效，未知路径返回 404。
+- 部署配置：`wrangler.jsonc` 项目名改为 `city-and-metro-starry`；发布仓库新增 `.github/workflows/deploy-pages.yml`（默认关闭的直传工作流）、`.assetsignore` 与 `DEPLOYMENT.md`。当前项目为 Direct Upload，仓库内的 Actions 工作流在配置 Cloudflare 凭据并打开 `CF_DIRECT_UPLOAD` 开关后即可实现每次 push 自动重新部署。
 - 修正 `scripts/build.mjs`：不再删除 `dist/.git`，且只重写游戏资产与生成文件，`site/`、`.github/` 和部署说明在重建时保留。
 
 ## Starry 版 1.0（2026-11-11）
