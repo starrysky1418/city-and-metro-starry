@@ -49,11 +49,12 @@
       g.model.setDayType(CM.Model.dayType(g.clock.y, g.clock.m, g.clock.d));
       g.traffic = { v: CFG.TRAFFIC_MODEL };
       g.net = M.empty();
-      g.mapInit = buildInitialNetwork(g);   // 开局既有地铁（东京 1950 年等），只在新建时生成一次，随存档保存
+      const emptyStart = opts.mode === 'challenge' && opts.emptyStart && D.emptyStartFunds > 0;
+      g.mapInit = emptyStart ? null : buildInitialNetwork(g);
       g.compiled = M.compile(g.net, g.city);
       g.model.setNetwork(g.compiled);
       lp(0.3, '建立交通模型');
-      g.econ = new CM.Economy(g.mode, g.clock.y, g.clock.m);
+      g.econ = new CM.Economy(g.mode, g.clock.y, g.clock.m, emptyStart ? D.emptyStartFunds : undefined);
       g.model.fare = g.econ.fare;
       g.tasks = new CM.Tasks();
       g.model.onSolveProgress = function (f) { lp(0.3 + (pre ? 0.08 : 0.62) * f, '计算居民出行'); };

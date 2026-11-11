@@ -19,9 +19,14 @@
     for(const m of Object.values(CM.MAPS)){
       const list=[...(m.geo.names||[]),...(m.data.landmarks||[]).map(x=>x.name),...(m.data.regions||[]).flatMap(x=>[x.name,...(x.streets||[]),...(x.district||[])]),...(m.data.facilities||[]).flatMap(x=>[x.n,x.label]),...((m.data.bgViz&&m.data.bgViz.ferries)||[]).map(x=>x.name),...(m.data.districtLabels||[]).map(x=>x[0]),...Object.keys(m.data.roadYears||{}),...Object.keys(m.data.bridgeYears||{}),...(m.data.places||[]).map(x=>Array.isArray(x)?x[0]:x.name)];
       if(m.data.defaultRegion)list.push(m.data.defaultRegion.name);
+      for(const [source,label] of Object.entries(m.data.stationNameAliases||{})){
+        if(hasHan(source)||!hasHan(label)||en[label])continue;
+        if(!names.get(label))names.set(label,source);
+        nameLengths.set(label[0],Math.max(nameLengths.get(label[0])||0,label.length));
+      }
       for(const task of m.data.histTasks||[])for(const anchor of task.anchors||[])list.push(anchor.name);
       for(const raw of list)if(typeof raw==='string')for(const s of new Set([raw,raw.replace(/（.*?）/g,'').trim()]))if(s.length>1&&s.length<80&&!en[s]){
-        names.set(s,null);nameLengths.set(s[0],Math.max(nameLengths.get(s[0])||0,s.length));
+        if(!names.has(s))names.set(s,null);nameLengths.set(s[0],Math.max(nameLengths.get(s[0])||0,s.length));
       }
     }
   }

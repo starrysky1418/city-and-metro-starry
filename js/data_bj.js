@@ -330,6 +330,7 @@
         station: { underground: { S: 13000, M: 21000, L: 34000 }, elevated: { S: 7000, M: 11000, L: 17000 }, surface: { S: 4000, M: 7000, L: 10000 } },
         demolishPerCell: 45000,
       }),
+      fareDefault: { mode: 'flat', flat: 0.2, dist: false },
       economy: Object.assign({}, CM.CFG.economy, { startFunds: 450000, grantBase: [[1990, 24000], [1995, 42000], [2000, 65000], [2005, 130000], [2010, 200000], [2015, 240000], [2020, 270000], [2050, 360000]], debtLimit: -320000, rewardScale: 1.5 }),
       // 城市经济（macro.js）：1990 年地图范围 GDP 约 430 亿元（估算：北京全市约 500 亿元，地图覆盖中心城区与近郊主要开发区）；
       // 首都功能与科技、金融服务业比重高，2008 年奥运建设与 2015 年后的疏解体现在生产率趋势与事件中

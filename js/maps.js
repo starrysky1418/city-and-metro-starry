@@ -4,7 +4,7 @@
 (function (CM) {
   const CFG = CM.CFG, U = CM.U;
   // 随地图切换的配置项：格网、起始日期、人口增长、货币与价格基年、建设与运营成本、票价、财政、城市经济、出行选择与道路参数
-  const CFG_KEYS = ['W', 'H', 'ZONE', 'START', 'growth', 'money', 'econBase', 'cost', 'ops', 'fareDefault', 'fareRange', 'economy', 'macro', 'choice', 'road', 'workWeek'];
+  const CFG_KEYS = ['W', 'H', 'ZONE', 'START', 'growth', 'money', 'econBase', 'cost', 'ops', 'fareDefault', 'fareDist', 'fareRange', 'economy', 'macro', 'choice', 'road', 'workWeek'];
   const GZ_CFG = {}; for (const k of CFG_KEYS) GZ_CFG[k] = k === 'START' ? Object.assign({}, CFG.START) : CFG[k];
   // 出行选择参数按「发展阶段对应年份」平移并按本城货币缩放：devOffset 为广州曲线年份减本城年份，money 为本城货币相对广州曲线的倍数
   const shift = function (curve, off, k) { return curve.map(function (p) { return [p[0] - off, p[1] * (k || 1)]; }); };
@@ -229,16 +229,21 @@
     c.fillStyle = dark ? '#1b2533' : '#eef3f0'; c.fillRect(0, 0, cv.width, cv.height);
     c.setTransform(S, 0, 0, S, 0, 0);
     let n = 0;
-    const poly = function* (rows, col) {
+    const poly = function* (rows, col, fillSeparately) {
       c.fillStyle = col; c.beginPath();
-      for (const row of rows) { for (let k = 1; k < row.length; k++) { if (typeof row[k] !== 'string') continue; const p = dec(row[k], 1); c.moveTo(p[0], p[1]); for (let q = 2; q < p.length; q += 2) c.lineTo(p[q], p[q + 1]); } if (++n % 150 === 0) { sync(); yield; } }
-      c.fill('evenodd');
+      for (const row of rows) {
+        if (fillSeparately) c.beginPath();
+        for (let k = 1; k < row.length; k++) { if (typeof row[k] !== 'string') continue; const p = dec(row[k], 1); c.moveTo(p[0], p[1]); for (let q = 2; q < p.length; q += 2) c.lineTo(p[q], p[q + 1]); }
+        if (fillSeparately) c.fill('evenodd');
+        if (++n % 150 === 0) { sync(); yield; }
+      }
+      if (!fillSeparately) c.fill('evenodd');
     };
     const line = function (p) { c.beginPath(); c.moveTo(p[0], p[1]); for (let q = 2; q < p.length; q += 2) c.lineTo(p[q], p[q + 1]); c.stroke(); };
     yield* poly(G.woods || [], dark ? '#22362f' : '#dbe9dc');
     yield* poly(G.reserves || [], dark ? '#2a4238' : '#c9dfcc');
     yield* poly(G.parks || [], dark ? '#264034' : '#cfe6cf');
-    yield* poly((G.water || []).filter(function (r) { return typeof r[1] !== 'number'; }), dark ? '#2b4f78' : '#a9cdeb');
+    yield* poly((G.water || []).filter(function (r) { return typeof r[1] !== 'number'; }), dark ? '#2b4f78' : '#a9cdeb', m.data.overlappingWater);
     c.lineCap = 'round'; c.lineJoin = 'round';
     for (const r of G.water || []) if (typeof r[1] === 'number') { c.strokeStyle = dark ? '#2b4f78' : '#a9cdeb'; c.lineWidth = Math.max(r[1], 0.25); line(dec(r[2])); if (++n % 150 === 0) { sync(); yield; } }
     for (const r of G.rail || []) { if (r[1] & 2) continue; c.strokeStyle = dark ? '#5b6676' : '#9aa3ae'; c.lineWidth = 0.18; line(dec(r[2])); if (++n % 150 === 0) { sync(); yield; } }

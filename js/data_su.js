@@ -121,7 +121,8 @@
     cfg:{
       W:geo.w,H:geo.h,START:{y:2010,m:1,d:1,minute:360},econBase:1990,
       growth:Object.assign({},CM.CFG.growth,{histEnd:2020,popCurve:[[2010,5.9e6],[2020,7.65e6],[2040,9.1e6],[2300,9.8e6]],jobsRatio:[[2010,0.54],[2020,0.58]]}),
-      economy:Object.assign({},CM.CFG.economy,{startFunds:1400000,grantBase:[[2010,31000],[2020,49000],[2050,70000]]}),
+      // 月度拨款按与广州相同的建设价格基准校准。
+      economy:Object.assign({},CM.CFG.economy,{startFunds:1400000,grantBase:[[2010,60000],[2020,95000],[2050,150000]]}),
       macro:{area:'苏州社区地图范围（含无锡新吴局部）',region:'中国内地',gdp0:73000000,
         revRatio:[[2010,0.17],[2020,0.19]],revElastic:1.3,prod:[[2010,0.06],[2020,0.037],[2050,0.02]],
         infl:'cn',ref:'cn',histEnd:2020,longRun:{infl:0.02},struct:{trade:0.85,fin:0.55,ind:0.95,tour:0.55,prop:0.7},

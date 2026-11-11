@@ -914,7 +914,29 @@
       const stop = cands.find(c => c.type === 0 && c.d <= 1.2);
       if (stop && !used.has(stop.n)) return stop.n;
     }
-    for (const c of cands) { if (c.d > 3.2) break; if (!used.has(c.n)) return c.n; }
+    const preferRoad = /^中国/.test(CM.curMap?.()?.region || '');
+    for (const c of cands) {
+      if (c.d > 3.2) break;
+      if (!used.has(c.n) && (!preferRoad || !c.n.endsWith('社区'))) return c.n;
+    }
+    if (preferRoad) {
+      let nearestRoad = '', distance = 3.2;
+      for (const way of city.roadWays || []) {
+        const road = city.roadGroups[way.g], name = road.name.trim();
+        if (!city.roadsBuilt[way.g] || (road.flags & 4) || used.has(name) ||
+            !/[路街道巷]$/.test(name) || /高速|快速|匝道/.test(name)) continue;
+        const [left, top, right, bottom] = way.bbox;
+        if (x < left - distance || x > right + distance || y < top - distance || y > bottom + distance) continue;
+        const p = way.p;
+        for (let i = 0; i + 3 < p.length; i += 2) {
+          const d = U.distToSeg(x, y, p[i], p[i + 1], p[i + 2], p[i + 3]);
+          if (d < distance) { distance = d; nearestRoad = name; }
+        }
+      }
+      if (nearestRoad) return nearestRoad;
+      const community = cands.find(c => c.d <= 3.2 && !used.has(c.n));
+      if (community) return community.n;
+    }
     const c0 = cands[0];
     if (c0 && c0.d < 7) {
       const dx = x - c0.x, dy = y - c0.y;

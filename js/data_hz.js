@@ -244,7 +244,8 @@
         demolishPerCell: 50000,
       }),
       ops: Object.assign({}, CM.CFG.ops, { carKmCost: 0.0013, stationDaily: { S: 2.2, M: 3.8, L: 6.5 } }),
-      fareDefault: { mode: 'flat', flat: 3 }, fareRange: { min: 0, max: 10, step: 0.1, scale: true },
+fareDefault: { mode: 'flat', flat: 2 }, fareRange: { min: 0, max: 10, step: 0.1, scale: true },
+      fareDist: { km0: 4, step: 5, inc: 0.5, cap: 4 },
       economy: Object.assign({}, CM.CFG.economy, { startFunds: 500000, grantBase: [[2000, 25000], [2005, 40000], [2010, 75000], [2015, 100000], [2020, 120000], [2050, 180000]], debtLimit: -300000, rewardScale: 1.6 }),
       // 城市经济（macro.js）：2000 年地图范围 GDP 约 800 亿元（估算：杭州全市约 1380 亿元，地图覆盖主城与钱江两岸）；
       // 民营经济与外贸活跃，旅游消费比重高；数字经济在 2010 年代成为增长动力（体现在生产率趋势中）

@@ -18,9 +18,9 @@
   Economy.BUILD_KINDS = BUILD_KINDS;
   Economy.MONEY_EPS = MONEY_EPS;
 
-  function Economy(mode, y, m) {
+  function Economy(mode, y, m, startFunds = CFG.economy.startFunds) {
     this.mode = mode;
-    this.funds = mode === 'free' ? 0 : CFG.economy.startFunds;   // 一般资金（拨款、票款等；运营、利息与还本只能从这里支付）
+    this.funds = mode === 'free' ? 0 : startFunds;   // 一般资金（拨款、票款等；运营、利息与还本只能从这里支付）
     this.capex = 0;            // 建设专项资金：债券募集，只能用于地铁建设及改扩建
     this.bonds = [];           // 已发行的债券
     this.bondIssued = {};      // 每年已发行额 { 年份: { local, ct } }

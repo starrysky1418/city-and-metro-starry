@@ -137,7 +137,8 @@
     cfg:{
       W:272,H:128,ZONE:4,START:{y:2000,m:1,d:1,minute:360},econBase:2000,
       growth:Object.assign({},CM.CFG.growth,{histEnd:2020,popCurve:[[2000,6.5e6],[2005,8.2e6],[2010,10.3e6],[2020,15.5e6],[2040,17e6],[2300,18e6]],jobsRatio:[[2000,0.56],[2010,0.59],[2020,0.61]]}),
-      fareDefault:{mode:'flat',flat:3},fareRange:{min:0,max:12,step:0.1,scale:true},
+fareDefault:{mode:'flat',flat:2},fareRange:{min:0,max:12,step:0.1,scale:true},
+      fareDist:{km0:4,step:5,inc:0.5,cap:2.5},
       economy:Object.assign({},CM.CFG.economy,{startFunds:560000,grantBase:[[2000,32000],[2005,51000],[2010,85000],[2020,150000],[2050,220000]]}),
       macro:{
         area:'深圳社区地图范围',region:'中国内地',gdp0:16600000,revRatio:[[2000,0.16],[2010,0.19],[2020,0.21],[2040,0.2]],revElastic:1.4,

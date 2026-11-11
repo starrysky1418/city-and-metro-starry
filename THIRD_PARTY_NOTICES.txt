@@ -24,6 +24,8 @@ repository or the deployed game; retain attribution and applicable ODbL terms.
 社区版南京底图（js/geo_nj.js）：2026 年 11 月 OpenStreetMap 数据，取自 Geofabrik 江苏提取包，按游戏范围裁切和编码，依 ODbL 1.0 提供。
 社区版苏州底图（js/geo_su.js）也使用 Geofabrik 江苏提取包，依 ODbL 1.0 提供。
 https://download.geofabrik.de/asia/china/jiangsu.html
+社区版纽约都会区底图（js/geo_ny.js）使用 BBBike NewYork 提取包中的 OpenStreetMap 数据，按游戏范围裁切和编码，依 ODbL 1.0 提供。
+https://download.bbbike.org/osm/bbbike/NewYork/
 广州和上海扩展底图（js/geo_gz_outer.js、js/geo_sh_outer.js）采用 Geofabrik 广东、上海和江苏提取包中的 OpenStreetMap 数据，并按游戏范围裁切和编码，依 ODbL 1.0 提供。
 https://download.geofabrik.de/asia/china/shanghai.html
 https://download.geofabrik.de/asia/china/guangdong.html

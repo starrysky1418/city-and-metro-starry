@@ -336,9 +336,9 @@
     m.set(text, e);
     return e;
   };
-  Renderer.prototype.featurePath = function (feature, polygon) {
+  Renderer.prototype.featurePath = function (feature, polygon, orientRings) {
     let p = this.geoPaths.get(feature);
-    if (!p) { p = new Path2D(); if (polygon) CM.Geo.tracePoly(p, feature); else CM.Geo.traceLine(p, feature.p); this.geoPaths.set(feature, p); }
+    if (!p) { p = new Path2D(); if (polygon) CM.Geo.tracePoly(p, feature, orientRings); else CM.Geo.traceLine(p, feature.p); this.geoPaths.set(feature, p); }
     return p;
   };
   // 水岸描边用的路径（v2.2）：跳过数据按范围裁剪留下的直边（较长且正好水平或竖直的线段），
@@ -983,7 +983,9 @@
     }
     // 水系（真实岸线）
     const wpth = new Path2D(), bankPath = new Path2D();
-    for (const f of Geo.water) if (inBox(f.bbox, 0.5)) { wpth.addPath(this.featurePath(f, true)); bankPath.addPath(this.bankPath(f)); }
+    // 纽约的潮汐河道与海岸水面重叠，统一环方向后取并集，避免奇偶填充挖空河面。
+    const waterRule = D.overlappingWater ? 'nonzero' : 'evenodd';
+    for (const f of Geo.water) if (inBox(f.bbox, 0.5)) { wpth.addPath(this.featurePath(f, true, D.overlappingWater)); bankPath.addPath(this.bankPath(f)); }
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     // 历史海岸线：尚未填海成陆的区域仍画成水面（单独以 nonzero 填充，避免与海域多边形的奇偶规则抵消）
     // v2.1：填海范围按平滑后的实际水面（city.reclaimWater），岸线只描旧海岸一侧
@@ -996,11 +998,11 @@
     }
     ctx.strokeStyle = GROUND.bank; ctx.lineWidth = Math.max(0.05, px * 2.4); ctx.stroke(bankPath);
     if (anyRc) ctx.stroke(redge);
-    ctx.fillStyle = GROUND.water; ctx.fill(wpth, 'evenodd');
+    ctx.fillStyle = GROUND.water; ctx.fill(wpth, waterRule);
     if (anyRc) ctx.fill(rpth, 'nonzero');
     // 水面波纹（近景）
     if (lvl >= 16) {
-      ctx.save(); ctx.clip(wpth, 'evenodd');
+      ctx.save(); ctx.clip(wpth, waterRule);
       ctx.strokeStyle = GROUND.glint; ctx.lineWidth = px * 1.2;
       ctx.beginPath();
       // 波纹格点按世界坐标对齐（相邻地图块、分条绘制时图案连续）
@@ -5275,6 +5277,18 @@
     }
     // 普通地标与非枢纽设施，避让已排好的枢纽及地铁站名。
     for (const it of mapLabels) if (!it.hub) drawMapLabel(it);
+    // 近景片区名使用区名样式，并给车站和地标让位。
+    if (z >= 12 && mapOn && this.layer === 'none' && D.neighborhoodLabels) {
+      const font = TYPE.district(z), a = U.clamp((z - 12) / 4, 0, 1) * 0.85;
+      for (const [name, x, y] of D.neighborhoodLabels) {
+        if (x < v.x0 || x > v.x1 || y < v.y0 || y > v.y1) continue;
+        const { x: px, y: py } = this.P(x, y, 0, tmp);
+        const tw = this.textW(font, name);
+        if (a > 0 && fits(px - tw / 2 - 3, py - 10, px + tw / 2 + 3, py + 10)) {
+          put(name, px, py, font, TH.district, true, 1, a, -1, x, y, 0);
+        }
+      }
+    }
     // 道路名
     if (z >= 22 && this.layer === 'none' && mapOn) {
       const seen = new Set();

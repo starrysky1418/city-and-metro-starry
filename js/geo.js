@@ -186,8 +186,21 @@
     return out;
   };
   // 在画布上描出要素路径
-  Geo.tracePoly = function (ctx, f) {
-    for (const r of f.rings) { const p = r.p; ctx.moveTo(p[0], p[1]); for (let k = 2; k < p.length; k += 2) ctx.lineTo(p[k], p[k + 1]); ctx.lineTo(p[0], p[1]); }
+  Geo.tracePoly = function (ctx, f, orientRings) {
+    for (const r of f.rings) {
+      const p = r.p;
+      let area = 0;
+      if (orientRings) for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+        area += p[j] * p[i + 1] - p[i] * p[j + 1];
+      }
+      ctx.moveTo(p[0], p[1]);
+      if (orientRings && (area > 0) !== r.outer) {
+        for (let k = p.length - 2; k > 0; k -= 2) ctx.lineTo(p[k], p[k + 1]);
+      } else {
+        for (let k = 2; k < p.length; k += 2) ctx.lineTo(p[k], p[k + 1]);
+      }
+      ctx.lineTo(p[0], p[1]);
+    }
   };
   Geo.traceLine = function (ctx, p) { ctx.moveTo(p[0], p[1]); for (let k = 2; k < p.length; k += 2) ctx.lineTo(p[k], p[k + 1]); };
 })(window.CM);

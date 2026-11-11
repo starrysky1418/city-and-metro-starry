@@ -106,7 +106,8 @@
       money:{code:'SGD',unit:'新元',wan:'万新元',yi:'亿新元',sym:'S$'},
       growth:Object.assign({},CM.CFG.growth,{histEnd:2020,popCurve:[[1985,2.7e6],[1995,3.5e6],[2005,4.3e6],[2020,5.7e6],[2050,6.6e6],[2300,7e6]],jobsRatio:[[1985,0.46],[2005,0.53],[2020,0.57]]}),
       cost:Object.assign({},CM.CFG.cost,{trackPerKm:{underground:11500,surface:2400,elevated:4900},station:{underground:{S:4900,M:8200,L:13000},surface:{S:1500,M:2400,L:4200},elevated:{S:2600,M:4100,L:6500}},riverPerKm:{underground:8000,surface:5500,elevated:5500}}),
-      fareDefault:{mode:'flat',flat:0.85},fareRange:{min:0,max:4,step:0.05,scale:true},
+      fareDefault:{mode:'flat',flat:0.50},fareRange:{min:0,max:4,step:0.05,scale:true},
+      fareDist:{km0:4,step:4,inc:0.3,cap:2.2},
       ops:Object.assign({},CM.CFG.ops,{carKmCost:0.00042,stationDaily:{S:0.5,M:1,L:1.8}}),
       economy:Object.assign({},CM.CFG.economy,{startFunds:210000,grantBase:[[1985,9500],[1995,15000],[2005,22000],[2020,31000],[2050,46000]],debtLimit:-120000}),
       macro:{

@@ -201,12 +201,12 @@
       // 自由建造选项（v2.2）：起始年份（默认开局年份至史料截止年份，逐年可选）与解锁全图；按地图记住本次选择
       const fo = freeOpts[sel] || (freeOpts[sel] = { year: y0, unlock: false });
       let poster = null;
-      const start = function (mode) {
+      const start = function (mode, emptyStart) {
         snd('build');
         const free = mode === 'free', yr = free ? fo.year : y0, r = poster && poster.getBoundingClientRect();
         self.stageBg(CM.mapThumb(sel, theme), r && r.width > 40 ? r : null);   // 地图画面放大成载入背景
         if (mp.tutorial) CM.newGame({ map: sel, mode: 'free', tutorial: true, name: '新手教程 · ' + mp.data.city });
-        else CM.newGame({ map: sel, mode: mode, name: (free ? '自由建造' : '经营挑战') + ' · ' + mp.data.city + ' ' + yr, startYear: free && yr > y0 ? yr : null, unlockAll: free && fo.unlock });
+        else CM.newGame({ map: sel, mode: mode, name: (free ? '自由建造' : emptyStart ? '从零建设' : '经营挑战') + ' · ' + mp.data.city + ' ' + yr, startYear: free && yr > y0 ? yr : null, unlockAll: free && fo.unlock, emptyStart });
       };
       // 自由建造：点击按钮展开一行选项（起始年份滑块、解锁全图、开始），按钮说明显示当前选择
       const freeParts = function () {
@@ -230,8 +230,8 @@
         show();
         return [btn, pop];
       };
-      const modeBtn = function (mode, icon, badge, title, desc, primary) {
-        return h('button', { class: 'map-mode' + (primary ? ' primary' : ''), onclick: function () { start(mode); } },
+      const modeBtn = function (mode, icon, badge, title, desc, primary, emptyStart) {
+        return h('button', { class: 'map-mode' + (primary ? ' primary' : ''), onclick: function () { start(mode, emptyStart); } },
           h('span', { class: 'badge ' + badge }, ic(icon)), h('span', { class: 'grow' }, h('b', null, title), h('small', null, desc)), ic('chev', 16));
       };
       // 地图画面：标题、标语、难度与标签；底部一行要点（范围、起始、人口、货币；真实城市另列开局 GDP，估算）
@@ -269,6 +269,8 @@
       else {
         const ch = modeBtn('challenge', 'trophy', 'b-gold', '经营挑战', '初始资金 ' + U.fmtMoney(mp.cfg.economy.startFunds, undefined, mp.cfg.money), true);
         ch.dataset.tip = '新游戏 · 拨款随城市经济变化'; acts.appendChild(ch);
+        if (mp.data.emptyStartFunds) acts.appendChild(modeBtn('challenge', 'build', 'b-blue', '从零建设',
+          '无继承线路 · 初始资金 ' + U.fmtMoney(mp.data.emptyStartFunds, undefined, mp.cfg.money), false, true));
         acts.append.apply(acts, freeParts());
       }
       acts.appendChild(h('button', { class: 'map-mode sub', disabled: latest ? null : true, 'data-tip': latest ? latest.name + ' · ' + fmtDate(latest) : null, onclick: function () { if (latest) self.loadSlot(latest.slotId); } },
