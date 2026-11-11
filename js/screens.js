@@ -109,20 +109,17 @@
       !storageOk ? h('div', { class: 'callout bad', style: { marginTop: '14px' } }, ic('error'), h('div', { class: 'ct' }, '当前浏览器禁止本地存储，进度将无法自动保存。')) : null,
       h('div', { class: 'start-foot' }, '规划地铁、改变出行、塑造城市。', h('br'),
         '原作者 ', h('a', { href: 'https://github.com/VinsonFung', target: '_blank', rel: 'noopener' }, 'VinsonFung'), ' · ',
-        h('a', { href: 'https://city-and-metro.pages.dev', target: '_blank', rel: 'noopener' }, '原版网站'), ' · ',
+        h('a', { href: 'https://city-and-metro.pages.dev', target: '_blank', rel: 'noopener' }, '原版网址'), ' · ',
+        h('a', { href: 'https://b23.tv/H18TUXD', target: '_blank', rel: 'noopener' }, '原作者视频'), ' · ',
         h('a', { href: 'https://github.com/VinsonFung/city-and-metro', target: '_blank', rel: 'noopener' }, '原始仓库'), h('br'),
         h('a', { href: 'LICENSE.txt', target: '_blank', rel: 'noopener' }, '© 2026 VinsonFung · 仅限非商业使用'), h('br'),
         h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, '地图 © OpenStreetMap 贡献者 · ODbL'), ' · v' + CFG.GAME_VERSION));
-    // 右上角：公告、官方社区和主题共用按钮样式；外链保留当前游戏页面。
+    // 右上角：公告、社区版视频入口和主题共用按钮样式。
+    // 社区版不再展示指向原作者账号的小红书 / 抖音入口；B站入口在作者视频发布前为占位。
     const news = h('button', { class: 'corner-btn' + (newsSeen() ? '' : ' dot'), 'data-tip': '更新公告', 'aria-label': '更新公告', onclick: function () { self.showNews(function () { self.showStart(); }); } }, ic('megaphone'));
-    const social = function (icon, label, href) {
-      return h('a', { class: 'corner-btn', href: href, target: '_blank', rel: 'noopener noreferrer', 'data-tip': label, 'aria-label': label }, ic(icon, null, icon === 'xiaohongshu' ? 'brand-wordmark' : ''));
-    };
     this.startTheme = h('button', { class: 'corner-btn', 'aria-label': '切换深浅模式', onclick: function () { self.toggleTheme(); } });
-    const corner = h('div', { class: 'start-corner' }, news,
-      social('bilibili', '游戏官方 B站', 'https://b23.tv/H18TUXD'),
-      social('xiaohongshu', '游戏官方小红书', 'https://xhslink.cn/o/5eRdolGBwyK'),
-      social('douyin', '游戏官方抖音', 'https://v.douyin.com/XdxVSS5NHK8/'), this.startTheme);
+    const videoSoon = h('button', { class: 'corner-btn', 'data-tip': 'Starry 版视频 · 即将发布', 'aria-label': 'Starry 版视频 · 即将发布', onclick: function () { self.toast('Starry 版视频即将发布，敬请期待'); } }, ic('bilibili'));
+    const corner = h('div', { class: 'start-corner' }, news, videoSoon, this.startTheme);
     this.openScreen(h('div', { class: 'start-root' }, wrap, corner), null, 'start' + (calm ? ' calm' : ''), tr || null);
     this.renderThemeBtns();
   };

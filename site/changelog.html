@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>更新日志 · 城市与地铁 Starry 社区版</title>
-<meta name="description" content="《城市与地铁》Starry 非商业社区修改版更新日志：1.1（纽约都会区、全图票价核对、部署与访问）与 Starry 版 1.0 首版记录。">
+<meta name="description" content="《城市与地铁》Starry 非商业社区修改版自己的更新日志：1.0 为作者原始工作总结，1.1 记录纽约都会区、全图票价核对与正式上线。">
 <meta name="theme-color" content="#eaf1f7">
 <link rel="icon" type="image/png" href="assets/img/favicon.png">
 <link rel="stylesheet" href="assets/style.css">
@@ -32,6 +32,7 @@
       <a href="index.html#media">宣传片</a>
       <a class="on" href="changelog.html">更新日志</a>
       <a href="index.html#credits">署名许可</a>
+      <span class="bili-soon" title="Starry 版视频即将在 B站发布，敬请期待">B站 · 即将发布</span>
       <a class="btn btn-primary btn-sm btn-play" data-play href="../">开始游玩 <span class="arrow">→</span></a>
     </nav>
   </div>
@@ -44,7 +45,7 @@
       <div>
         <span class="eyebrow"><i class="dot"></i> CHANGELOG</span>
         <h1>版本记录</h1>
-        <p class="hero-sub" style="max-width:44em">Starry 社区版基于 VinsonFung 的原版 v2.5.1 制作。以下记录按社区版自身版本号递增，并注明每个版本的发布状态与可访问地址。</p>
+        <p class="hero-sub" style="max-width:44em">这是 Starry 非商业社区修改版自己的更新日志，不是原版的版本记录。1.0 为作者原始工作总结，1.1 记录其中「本地开发版本」的正式发布与上线。</p>
         <div class="hero-actions" style="margin-top:24px">
           <a class="btn btn-primary" data-play href="../">打开游戏 <span class="arrow">→</span></a>
           <a class="btn btn-ghost" href="index.html">返回首页</a>
@@ -108,7 +109,7 @@
           </div>
         </div>
 
-        <!-- 1.0 -->
+        <!-- 1.0：作者工作总结原文 -->
         <div class="log-item">
           <div class="log-meta">
             <div class="log-ver">1.0</div>
@@ -116,63 +117,49 @@
             <span class="log-badge badge-rel">RELEASE</span>
           </div>
           <div class="log-body">
-            <h3>新增城市、外围扩图与建设运营流程改进</h3>
+            <h3>《城市与地铁》Starry 社区版工作总结</h3>
+            <p class="log-lead">以下为作者原文，按网页层级调整了标题级别。</p>
+
+            <p class="log-lead">本项目基于 VinsonFung 开发的浏览器游戏《城市与地铁》，在原版的客流模拟、线网规划和城市经营系统上制作了非商业社区版。主要工作包括新增五座城市剧本、扩展广州和上海地图，以及改进从草案建设到列车调度的操作流程。最直接的变化是，玩家可以先规划整条线路，再按需求和预算选择要开通的区段，并在运营后继续调整车站、运力和商业配置。</p>
 
             <div class="log-group">
-              <h4>地图与历史</h4>
+              <h4>一、原版基础</h4>
+              <p>原版以真实城市和历史年代为背景，提供九座真实城市和青湾教程。玩家可以修建地下、地面和高架线路，设置车站、换乘和列车交路，在经营挑战中平衡建设成本、运营支出、票款、财政拨款和债务。自由建造模式则适合尝试不同线网方案。</p>
+              <p>原版已经具备建设效果预测、居住与就业分布、客流与拥堵分析、历史事件、分期开放、政府合同和站内商业等机制。居民会根据线路可达性、出行时间和票价选择交通方式，城市人口和就业也会随年代及交通条件变化。这些系统构成了社区地图和功能扩展的基础。</p>
+            </div>
+
+            <div class="log-group">
+              <h4>二、地图与城市剧本</h4>
               <ul>
-                <li>新增<strong>新加坡（1985）、深圳（2000）、南京（2000）、苏州（2010）</strong>。苏州包含吴江、昆山城区和苏南硕放机场。</li>
-                <li>扩展<strong>广州</strong>：增加佛山核心区、花都、从化城区、增城和南沙等走廊；补上黄埔至增城之间的建设走廊。</li>
-                <li>扩展<strong>上海</strong>：增加嘉定、青浦、松江、金山、奉贤、临港及昆山方向。</li>
-                <li>社区地图采用 OpenStreetMap 地理数据，按场景配置人口、岗位、枢纽和历史事件。新加坡补充兀兰延长线、F1 和综合度假区；深圳补充大运会及机场航站楼迁移；南京补充青奥会及江北新区。</li>
-                <li>为社区城市配置合同；部分自由度较高的片区覆盖目标改为可选挑战。</li>
+                <li><strong>新增五座城市。</strong> 新加坡从 1985 年开始，围绕新镇连网、滨海湾与裕廊岛填海展开。深圳和南京从 2000 年开始，分别加入深圳机场航站楼迁移、大运会，以及南京青奥会、江北新区等阶段内容。苏州从 2010 年开始，覆盖吴江、昆山城区和苏南硕放机场。纽约从 1990 年开始，可以接手简化的地铁、PATH 和斯塔滕岛铁路骨干，也可以选择从零建设。</li>
+                <li><strong>补充广州和上海外围走廊。</strong> 广州扩展至佛山核心区、花都、从化城区、增城和南沙等方向，补上黄埔至增城之间的建设走廊。上海补充嘉定、青浦、松江、金山、奉贤、临港及昆山方向。</li>
+                <li><strong>完善地图细节和剧本配置。</strong> 使用 OpenStreetMap 地理数据绘制道路、岸线和地标，按剧本设置人口、岗位、枢纽需求、开放年份及历史事件。深圳、新加坡和南京加入合同机制。部分自由度较高的片区覆盖目标改为可选挑战。纽约修复哈德逊河水面显示和铁路枢纽重复标注，补充行政区、街区地名及中文自动站名。</li>
               </ul>
             </div>
 
             <div class="log-group">
-              <h4>建设与运营</h4>
-              <ul>
-                <li><strong>草案与分段开通</strong>：按线路归组草案，显示区段预算，由玩家选择先建哪些新建区段；允许同一条线从不同端推进，自动编号避开已使用的线路名。</li>
-                <li><strong>车站与区间改造</strong>：支持调整车站平面位置和标高，已建车站改造需支付费用；增加大型枢纽扩容，并允许在同一站间区段设置地下、地面和高架之间的高程变化。</li>
-                <li><strong>商业与列车管理</strong>：在车站总览查看商业预测并批量开发选中的车站；列车界面集中显示可用车型和各线配车，可开启每月自动购买缺失列车。</li>
-                <li><strong>客流与命名</strong>：车站详情分列进站、出站和站内换乘，展示站外换乘的步行距离、预计时间和客流；中国城市的自动站名优先选用合适的道路名，社区名作为后备。</li>
-              </ul>
+              <h4>三、建设与运营功能</h4>
+              <table class="log-table">
+                <thead><tr><th>改进方向</th><th>完成内容</th></tr></thead>
+                <tbody>
+                  <tr><td>草案与分段开通</td><td>按线路归组草案，显示区段预算，由玩家选择先建哪些新建区段。允许同一条线从不同端推进，自动编号避开已使用的线路名。</td></tr>
+                  <tr><td>车站与区间改造</td><td>支持调整车站平面位置和标高，已建车站改造需支付费用。增加大型枢纽扩容，并允许在同一站间区段设置地下、地面和高架之间的高程变化。</td></tr>
+                  <tr><td>商业与列车管理</td><td>在车站总览查看商业预测并批量开发选中的车站。列车界面集中显示可用车型和各线配车，可开启每月自动购买缺失列车。</td></tr>
+                  <tr><td>客流与命名</td><td>车站详情分列进站、出站和站内换乘，展示站外换乘的步行距离、预计时间和客流。中国城市的自动站名优先选用合适的道路名，社区名作为后备。</td></tr>
+                  <tr><td>票价与财政</td><td>核对全部 15 张地图的开局票价和拨款配置，调整纽约、北京、新加坡、深圳和杭州的默认票价。纽约采用 1990 年的 1.15 美元统一票价，并调整中期拨款，缓解造价上涨带来的建设能力下降。</td></tr>
+                </tbody>
+              </table>
             </div>
 
             <div class="log-group">
-              <h4>版本交付与验证</h4>
-              <ul>
-                <li>整理 Starry 版 1.0 更新日志、原作者署名、许可证和第三方资料说明。</li>
-                <li>制作宣传片，展示深圳、苏州、新加坡和南京地图，以及分段开通、车站标高和位置调整、批量商业开发等操作。</li>
-                <li>地图和功能迭代结合实际游玩反馈进行；地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价。</li>
-              </ul>
+              <h4>四、版本交付与验证</h4>
+              <p>整理了 <strong>Starry 版 1.0</strong> 的更新日志、原作者署名、许可证和第三方资料说明，并制作了宣传片，展示深圳、苏州、新加坡和南京地图，以及分段开通、车站标高和位置调整、批量商业开发等操作。首版更新日志记录了新加坡、深圳、南京、苏州及广州、上海扩图。纽约和最近一轮票价调整已纳入本地开发版本。</p>
+              <p>地图和功能迭代结合实际游玩反馈进行。最近一轮通过了 15 张地图的配置检查，以及纽约预置站名、新站自动命名和旧档英文站名转换测试。地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价。</p>
             </div>
-          </div>
-        </div>
 
-        <!-- 基线 -->
-        <div class="log-item">
-          <div class="log-meta">
-            <div class="log-ver">v2.5.1</div>
-            <div class="log-date">原版基线 · VinsonFung</div>
-            <span class="log-badge badge-base">BASELINE</span>
-          </div>
-          <div class="log-body">
-            <h3>社区版所基于的原版系统</h3>
-            <div class="log-group">
-              <h4>游戏内容</h4>
-              <ul>
-                <li>以真实城市和历史年代为背景，提供九座真实城市与青湾教程；可修建地下、地面和高架线路，设置车站、换乘与列车交路。</li>
-                <li>在经营挑战中平衡建设成本、运营支出、票款、财政拨款和债务；自由建造模式用于尝试不同线网方案。</li>
-              </ul>
-            </div>
-            <div class="log-group">
-              <h4>既有机制</h4>
-              <ul>
-                <li>建设效果预测、居住与就业分布、客流与拥堵分析、历史事件、分期开放、政府合同和站内商业。</li>
-                <li>居民根据线路可达性、出行时间和票价选择交通方式；城市人口和就业随年代及交通条件变化。</li>
-                <li>上述系统构成社区地图和功能扩展的基础；社区版版本号与原版独立递增。</li>
-              </ul>
+            <div class="log-source">
+              <strong>项目署名</strong>　原作由 VinsonFung 开发，Starry 为非商业社区修改版。<br>
+              <a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">原版游戏 ↗</a> · <a href="https://github.com/VinsonFung/city-and-metro" target="_blank" rel="noopener">原始仓库 ↗</a>
             </div>
           </div>
         </div>
@@ -205,6 +192,7 @@
   <div class="wrap foot-in">
     <p>Copyright © 2026 VinsonFung · Starry 为非商业社区修改版 · 原版及社区版均严禁商业使用</p>
     <div class="foot-links"><a href="index.html">首页</a><a href="changelog.html">更新日志</a><a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">原版网站 ↗</a></div>
+    <p class="foot-origin">原作与出处：VinsonFung · 原版网址 <a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">city-and-metro.pages.dev</a> · <a href="https://github.com/VinsonFung/city-and-metro" target="_blank" rel="noopener">原始仓库 ↗</a> · 原作者视频 <a href="https://b23.tv/H18TUXD" target="_blank" rel="noopener">B站 ↗</a>　｜　Starry 版视频即将在 B站发布</p>
   </div>
 </footer>
 
