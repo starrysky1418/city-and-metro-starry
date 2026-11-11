@@ -184,6 +184,7 @@ h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.3; margin: 10px 0 0; lett
 }
 .video-box video { width: 100%; display: block; background: #0b1c2e; }
 .video-cap { padding: 14px 18px; color: #cbdcec; font-size: 13px; background: var(--navy); }
+.video-cap a { color: #9ecbff; text-decoration: underline; text-underline-offset: 3px; }
 .shot {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   overflow: hidden; box-shadow: var(--shadow);
@@ -227,9 +228,10 @@ h2 { font-size: clamp(24px, 3vw, 34px); line-height: 1.3; margin: 10px 0 0; lett
 .log-table td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; width: 128px; }
 .log-table tr:last-child td { border-bottom: 0; }
 .log-source { margin-top: 16px; padding: 12px 14px; background: var(--bg-soft); border-radius: 10px; font-size: 12.5px; color: var(--ink-2); line-height: 1.9; }
-.bili-soon { display: inline-flex; align-items: center; padding: 5px 11px; border: 1px dashed var(--line); border-radius: 999px; font-size: 12px; color: var(--ink-3); background: var(--surface); white-space: nowrap; }
+.bili-link { display: inline-flex; align-items: center; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--blue); background: var(--surface); text-decoration: none; white-space: nowrap; }
+.bili-link:hover { border-color: var(--blue); background: var(--bg-soft); }
 .foot-origin { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--ink-3); line-height: 1.8; }
-@media (max-width: 900px) { .bili-soon { display: none; } }
+@media (max-width: 900px) { .bili-link { display: none; } }
 @media (max-width: 620px) { .log-table td:first-child { width: auto; white-space: normal; } }
 
 /* ---------- Credits ---------- */

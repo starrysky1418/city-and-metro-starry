@@ -35,7 +35,8 @@
 - 2026-11-11 在 Cloudflare 创建同名 Pages 项目并直传部署 **127 个静态文件**。线上抽查：首页、`/site/`、`/site/changelog.html`、`js/data_ny.js`、`js/geo_ny.js`（5.9 MB）、宣传片（21 MB）均返回 200；`_headers` 的缓存与安全响应头生效，未知路径返回 404。
 - 部署配置：`wrangler.jsonc` 项目名改为 `city-and-metro-starry`；发布仓库新增 `.github/workflows/deploy-pages.yml`（默认关闭的直传工作流）、`.assetsignore` 与 `DEPLOYMENT.md`。当前项目为 Direct Upload，仓库内的 Actions 工作流在配置 Cloudflare 凭据并打开 `CF_DIRECT_UPLOAD` 开关后即可实现每次 push 自动重新部署。
 - 修正 `scripts/build.mjs`：不再删除 `dist/.git`，且只重写游戏资产与生成文件，`site/`、`.github/` 和部署说明在重建时保留。
-- 启动界面不再保留指向原作者账号的小红书、抖音入口；B站入口改为社区版视频占位（发布后填入作者本人视频链接），并在界面底部标出原版网站与原作者视频。
+- 启动界面不再保留指向原作者账号的小红书、抖音入口；B站入口指向社区版作者本人的视频，并在界面底部标出原版网址与原作者视频。
+- 2026-11-12 补充：介绍视频《城市与地铁-社区版by starry》已在 B站发布（https://www.bilibili.com/video/BV1dnWU6xECS/）。游戏启动页、介绍站导航与页脚的 B站入口同步从「即将发布」占位改为正式链接，宣传片图廊也加上了跳转入口。
 - 所有社区版地图的站名统一使用中文，包括纽约；这是社区版的刻意设定，不是翻译缺失。
 
 ## Starry 版 1.0（2026-11-11）
