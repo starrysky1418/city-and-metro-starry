@@ -1,8 +1,10 @@
 # 城市与地铁 · Starry 社区版更新日志
 
-基于 VinsonFung 的原版 v2.5.1 制作的非商业社区修改版。保留原版的地铁规划、客流模拟与城市经营玩法，新增地图并扩展建设和运营工具。社区版版本号与原版独立递增；已纳入本地源码但尚未发布的改动单独列为「开发版」。
+基于 VinsonFung 的原版 v2.5.1 制作的非商业社区修改版。保留原版的地铁规划、客流模拟与城市经营玩法，新增地图并扩展建设和运营工具。社区版版本号与原版独立递增；每个版本同时记录发布状态与可访问地址，详细的部署步骤见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
-## 1.1 开发版（本地开发版本，尚未发布）
+## Starry 版 1.1（2026-11-11）
+
+**发布状态**：成品已推送到 [starrysky1418/city-and-metro-starry](https://github.com/starrysky1418/city-and-metro-starry) 的 `main` 分支（提交 `48307c9`），[GitHub Pages 站点](https://starrysky1418.github.io/city-and-metro-starry/) 已上线、可直接游玩。目标域名 `city-and-metro-starry.pages.dev` 需在 Cloudflare 建立同名 Pages 项目并绑定该仓库后生效；在此之前该域名尚无 DNS 记录。
 
 ### 地图与历史
 
@@ -19,10 +21,18 @@
 
 - 通过 15 张地图的配置检查。
 - 通过纽约预置站名、新站自动命名和旧档英文站名转换测试。
+- 源码与发布目录均通过资源校验：版本 2.5.1 / 15 张地图 / 107 个文件。
+
+### 发布与部署
+
+- 发布仓库存放的是静态成品：`index.html` 位于根目录，无打包步骤、无构建命令，输出目录为 `/`；存档保存在浏览器 `localStorage`，无需后端、账号或安装。
+- GitHub Pages 已随 `main` 分支自动构建并上线。介绍站与网页版更新日志随仓库发布于 `/site/`，纯文本日志为 `/CHANGELOG.md`。
+- 为接入 `city-and-metro-starry.pages.dev` 补齐部署配置：`wrangler.jsonc` 项目名改为 `city-and-metro-starry`，发布仓库新增 `.github/workflows/deploy-pages.yml`（默认关闭的直传工作流）、`.assetsignore` 与 `DEPLOYMENT.md`。推荐在 Cloudflare Dashboard 用 Connect to Git 直接绑定仓库，之后每次 push 自动上线。
+- 修正 `scripts/build.mjs`：不再删除 `dist/.git`，且只重写游戏资产与生成文件，`site/`、`.github/` 和部署说明在重建时保留。
 
 ## Starry 版 1.0（2026-11-11）
 
-首版更新日志记录新加坡、深圳、南京、苏州及广州、上海扩图；纽约与最近一轮票价调整见上方 1.1 开发版。
+首版更新日志记录新加坡、深圳、南京、苏州及广州、上海扩图；纽约与最近一轮票价调整见上方 1.1。
 
 ### 地图与历史
 
@@ -47,11 +57,15 @@
 
 原版以真实城市和历史年代为背景，提供九座真实城市和青湾教程；已具备建设效果预测、居住与就业分布、客流与拥堵分析、历史事件、分期开放、政府合同和站内商业等机制。居民会根据线路可达性、出行时间和票价选择交通方式，城市人口和就业随年代及交通条件变化。这些系统构成社区地图和功能扩展的基础。
 
+## 关于数据与验证
+
+地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价；开通年份参照公开年表，客流、造价与几何量中的估算部分在 `THIRD_PARTY_NOTICES.txt` 标注来源。每轮迭代检查全部 15 张地图的开局配置，并对预置站名、自动命名与旧存档迁移做专项测试。
+
 ## 署名与许可
 
 - [原作者 VinsonFung](https://github.com/VinsonFung)
-- [原版网站](https://city-and-metro.pages.dev)
-- [原始仓库](https://github.com/VinsonFung/city-and-metro)
+- [原版网站](https://city-and-metro.pages.dev) · [原始仓库](https://github.com/VinsonFung/city-and-metro)
+- [社区版发布仓库](https://github.com/starrysky1418/city-and-metro-starry) · [部署说明](DEPLOYMENT.md)
 - [非商业使用许可证](LICENSE.txt) · [第三方资料与署名](THIRD_PARTY_NOTICES.txt)
 
 原作由 VinsonFung 开发，Starry 为非商业社区修改版。原版及社区改版均严禁商业使用；发布时须在醒目位置标明社区修改版身份，保留原作者署名、原版链接、许可证与第三方资料声明。

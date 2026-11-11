@@ -1,0 +1,8 @@
+# Cloudflare Pages 直传时排除的非站点文件（语法与 .gitignore 类似）
+# 说明文档仍可通过 /site/changelog.html 查看，这里只排除仓库管理文件。
+.git/
+.github/
+.assetsignore
+DEPLOYMENT.md
+README.md
+.nojekyll

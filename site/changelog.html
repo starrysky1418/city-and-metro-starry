@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>更新日志 · 城市与地铁 Starry 社区版</title>
+<meta name="description" content="《城市与地铁》Starry 非商业社区修改版更新日志：1.1（纽约都会区、全图票价核对、部署与访问）与 Starry 版 1.0 首版记录。">
+<meta name="theme-color" content="#eaf1f7">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="stylesheet" href="assets/style.css">
+<script>
+  // 试玩入口：本地 file:// 预览指向源码游戏；部署后介绍站位于 /site/ 子目录，
+  // 游戏在站点根目录，因此 ../ 可同时适配 GitHub Pages 与 Cloudflare Pages。
+  const PLAY_URL = location.protocol === 'file:' ? '../city-and-metro-main/index.html' : '../';
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-play]').forEach(function (a) { a.href = PLAY_URL; });
+  });
+</script>
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap head-inner">
+    <a class="brand" href="index.html">
+      <img src="assets/img/logo-navy.png" alt="">
+      <span class="brand-txt">城市与地铁<small>CITY &amp; METRO</small></span>
+    </a>
+    <span class="edition-tag">Starry 社区版</span>
+    <nav class="nav">
+      <a href="index.html#cities">城市剧本</a>
+      <a href="index.html#features">建设运营</a>
+      <a href="index.html#media">宣传片</a>
+      <a class="on" href="changelog.html">更新日志</a>
+      <a href="index.html#credits">署名许可</a>
+      <a class="btn btn-primary btn-sm btn-play" data-play href="../">开始游玩 <span class="arrow">→</span></a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <div class="hero">
+    <div class="wrap hero-grid" style="grid-template-columns:1fr; padding:52px 0 46px">
+      <div>
+        <span class="eyebrow"><i class="dot"></i> CHANGELOG</span>
+        <h1>版本记录</h1>
+        <p class="hero-sub" style="max-width:44em">Starry 社区版基于 VinsonFung 的原版 v2.5.1 制作。以下记录按社区版自身版本号递增，并注明每个版本的发布状态与可访问地址。</p>
+        <div class="hero-actions" style="margin-top:24px">
+          <a class="btn btn-primary" data-play href="../">打开游戏 <span class="arrow">→</span></a>
+          <a class="btn btn-ghost" href="index.html">返回首页</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+
+      <div class="log-list">
+
+        <!-- 1.1 -->
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.1</div>
+            <div class="log-date">2026-11-11 · 已发布至仓库</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>纽约都会区与全图票价核对</h3>
+
+            <div class="log-group">
+              <h4>地图与历史</h4>
+              <ul>
+                <li><strong>新增纽约 1990 剧本</strong>：可以接手简化的地铁、PATH 和斯塔滕岛铁路骨干，也可以选择从零建设。</li>
+                <li>修复<strong>哈德逊河水面显示</strong>与<strong>铁路枢纽重复标注</strong>，补充行政区、街区地名及中文自动站名。</li>
+                <li>补充剧本阶段事件：世贸中心 PATH 车站恢复服务、肯尼迪机场 AirTrain、7 号线延伸至哈德逊广场、第二大道地铁首期、中央车站接入长岛铁路。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>票价与财政</h4>
+              <ul>
+                <li>核对<strong>全部 15 张地图</strong>的开局票价和拨款配置。</li>
+                <li>调整<strong>纽约、北京、新加坡、深圳、杭州</strong>的默认票价。</li>
+                <li>纽约采用 1990 年的 <strong>1.15 美元统一票价</strong>；同步调整中期拨款，缓解造价上涨带来的建设能力下降。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>验证</h4>
+              <ul>
+                <li>通过 15 张地图的配置检查。</li>
+                <li>通过纽约预置站名、新站自动命名、旧档英文站名转换测试。</li>
+                <li>源码与发布目录均通过资源校验：<strong>15 张地图 / 107 个文件</strong>。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>部署与访问</h4>
+              <ul>
+                <li>游戏成品已推送到 <a href="https://github.com/starrysky1418/city-and-metro-starry" target="_blank" rel="noopener">starrysky1418/city-and-metro-starry</a> 的 <code>main</code> 分支，提交 <code>48307c9</code>。仓库存放的是静态成品，无构建步骤，输出目录为仓库根。</li>
+                <li><a href="https://starrysky1418.github.io/city-and-metro-starry/" target="_blank" rel="noopener">GitHub Pages 站点</a>已上线，打开即玩；本站介绍页与更新日志随仓库发布于 <code>/site/</code> 路径。</li>
+                <li>目标域名 <code>city-and-metro-starry.pages.dev</code> 需在 Cloudflare 建立同名 Pages 项目并绑定该仓库后生效；创建前该域名尚无 DNS 记录。项目名、无构建命令、输出目录 <code>/</code> 及自动部署开关见仓库 <code>DEPLOYMENT.md</code>。</li>
+                <li>纯静态部署：无后端、无账号与登录，存档保存在浏览器本地；地图与功能可在同一网址随每次 push 持续更新。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1.0 -->
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.0</div>
+            <div class="log-date">Starry 版首版 · 2026-11-11</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>新增城市、外围扩图与建设运营流程改进</h3>
+
+            <div class="log-group">
+              <h4>地图与历史</h4>
+              <ul>
+                <li>新增<strong>新加坡（1985）、深圳（2000）、南京（2000）、苏州（2010）</strong>。苏州包含吴江、昆山城区和苏南硕放机场。</li>
+                <li>扩展<strong>广州</strong>：增加佛山核心区、花都、从化城区、增城和南沙等走廊；补上黄埔至增城之间的建设走廊。</li>
+                <li>扩展<strong>上海</strong>：增加嘉定、青浦、松江、金山、奉贤、临港及昆山方向。</li>
+                <li>社区地图采用 OpenStreetMap 地理数据，按场景配置人口、岗位、枢纽和历史事件。新加坡补充兀兰延长线、F1 和综合度假区；深圳补充大运会及机场航站楼迁移；南京补充青奥会及江北新区。</li>
+                <li>为社区城市配置合同；部分自由度较高的片区覆盖目标改为可选挑战。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>建设与运营</h4>
+              <ul>
+                <li><strong>草案与分段开通</strong>：按线路归组草案，显示区段预算，由玩家选择先建哪些新建区段；允许同一条线从不同端推进，自动编号避开已使用的线路名。</li>
+                <li><strong>车站与区间改造</strong>：支持调整车站平面位置和标高，已建车站改造需支付费用；增加大型枢纽扩容，并允许在同一站间区段设置地下、地面和高架之间的高程变化。</li>
+                <li><strong>商业与列车管理</strong>：在车站总览查看商业预测并批量开发选中的车站；列车界面集中显示可用车型和各线配车，可开启每月自动购买缺失列车。</li>
+                <li><strong>客流与命名</strong>：车站详情分列进站、出站和站内换乘，展示站外换乘的步行距离、预计时间和客流；中国城市的自动站名优先选用合适的道路名，社区名作为后备。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>版本交付与验证</h4>
+              <ul>
+                <li>整理 Starry 版 1.0 更新日志、原作者署名、许可证和第三方资料说明。</li>
+                <li>制作宣传片，展示深圳、苏州、新加坡和南京地图，以及分段开通、车站标高和位置调整、批量商业开发等操作。</li>
+                <li>地图和功能迭代结合实际游玩反馈进行；地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 基线 -->
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">v2.5.1</div>
+            <div class="log-date">原版基线 · VinsonFung</div>
+            <span class="log-badge badge-base">BASELINE</span>
+          </div>
+          <div class="log-body">
+            <h3>社区版所基于的原版系统</h3>
+            <div class="log-group">
+              <h4>游戏内容</h4>
+              <ul>
+                <li>以真实城市和历史年代为背景，提供九座真实城市与青湾教程；可修建地下、地面和高架线路，设置车站、换乘与列车交路。</li>
+                <li>在经营挑战中平衡建设成本、运营支出、票款、财政拨款和债务；自由建造模式用于尝试不同线网方案。</li>
+              </ul>
+            </div>
+            <div class="log-group">
+              <h4>既有机制</h4>
+              <ul>
+                <li>建设效果预测、居住与就业分布、客流与拥堵分析、历史事件、分期开放、政府合同和站内商业。</li>
+                <li>居民根据线路可达性、出行时间和票价选择交通方式；城市人口和就业随年代及交通条件变化。</li>
+                <li>上述系统构成社区地图和功能扩展的基础；社区版版本号与原版独立递增。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 方法说明 -->
+      <div class="legacy" style="margin-top:28px">
+        <h3>关于数据与验证</h3>
+        <p>地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价；开通年份参照公开年表，客流、造价与几何量中的估算部分在仓库的第三方资料说明里标注来源。每轮迭代会检查全部 15 张地图的开局配置，并对预置站名、自动命名与旧存档迁移做专项测试。</p>
+        <div class="chips">
+          <span class="chip">15 张地图配置检查</span><span class="chip">预置站名测试</span>
+          <span class="chip">新站自动命名测试</span><span class="chip">旧档英文站名转换测试</span>
+          <span class="chip">OpenStreetMap · ODbL 1.0</span>
+        </div>
+      </div>
+
+      <!-- 署名 -->
+      <div class="notice" style="margin-top:28px">
+        <span class="ic">ⓘ</span>
+        <div><strong>原作由 VinsonFung 开发，Starry 为非商业社区修改版。</strong> 原版及社区改版均严禁商业使用；发布时须保留原作者署名、原版链接、许可证与第三方资料声明，并清楚标明社区改版身份。<a href="index.html#credits">查看完整署名 →</a></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap foot-in">
+    <p>Copyright © 2026 VinsonFung · Starry 为非商业社区修改版 · 原版及社区版均严禁商业使用</p>
+    <div class="foot-links"><a href="index.html">首页</a><a href="changelog.html">更新日志</a><a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">原版网站 ↗</a></div>
+  </div>
+</footer>
+
+</body>
+</html>

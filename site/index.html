@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>城市与地铁 · Starry 社区版</title>
+<meta name="description" content="《城市与地铁》Starry 非商业社区修改版：新增新加坡、深圳、南京、苏州、纽约五座城市剧本，扩展广州与上海外围走廊，改进草案分段开通、车站改造与列车调度。">
+<meta name="theme-color" content="#eaf1f7">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="stylesheet" href="assets/style.css">
+<script>
+  // 试玩入口：本地 file:// 预览指向源码游戏；部署后介绍站位于 /site/ 子目录，
+  // 游戏在站点根目录，因此 ../ 可同时适配 GitHub Pages 与 Cloudflare Pages。
+  const PLAY_URL = location.protocol === 'file:' ? '../city-and-metro-main/index.html' : '../';
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-play]').forEach(function (a) { a.href = PLAY_URL; });
+  });
+</script>
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap head-inner">
+    <a class="brand" href="index.html">
+      <img src="assets/img/logo-navy.png" alt="">
+      <span class="brand-txt">城市与地铁<small>CITY &amp; METRO</small></span>
+    </a>
+    <span class="edition-tag">Starry 社区版</span>
+    <nav class="nav">
+      <a href="#cities">城市剧本</a>
+      <a href="#features">建设运营</a>
+      <a href="#media">宣传片</a>
+      <a href="changelog.html">更新日志</a>
+      <a href="#credits">署名许可</a>
+      <a class="btn btn-primary btn-sm btn-play" data-play href="../">开始游玩 <span class="arrow">→</span></a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow"><i class="dot"></i> 非商业社区修改版 · Starry 版 1.1</span>
+        <h1>在真实城市里，<br><span class="accent">画出你自己的地铁</span></h1>
+        <p class="hero-sub">在原版的客流模拟、线网规划与城市经营之上，新增五座城市剧本、扩展广州与上海外围走廊，并把「先规划全线、再分段开通、运营后持续调整」变成完整的操作流程。</p>
+        <p class="hero-note">原作由 VinsonFung 开发 · 本站为非官方社区修改版</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" data-play href="../">打开游戏 <span class="arrow">→</span></a>
+          <a class="btn btn-ghost" href="changelog.html">查看更新日志</a>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="metro-art">
+          <svg viewBox="0 0 420 360" role="img" aria-label="示意地铁线网">
+            <defs>
+              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M20 0H0V20" fill="none" stroke="#e6eef6" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <rect width="420" height="360" fill="#fbfdff"/>
+            <rect width="420" height="360" fill="url(#grid)"/>
+            <!-- 河流 -->
+            <path d="M0 246 C 90 224, 128 272, 210 248 S 336 214, 420 240" fill="none" stroke="#d5e9f7" stroke-width="28" stroke-linecap="round"/>
+            <path d="M0 246 C 90 224, 128 272, 210 248 S 336 214, 420 240" fill="none" stroke="#bcdcf2" stroke-width="2" stroke-linecap="round"/>
+            <!-- 红线 -->
+            <path d="M28 82 H150 L214 146 H392" fill="none" stroke="#e2483f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- 蓝线 -->
+            <path d="M72 306 L72 196 L150 118 L150 34" fill="none" stroke="#2878c8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- 绿线（环） -->
+            <path d="M150 118 L268 118 L330 180 L330 268 L226 268 L182 224 Z" fill="none" stroke="#2fa36b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- 橙线 -->
+            <path d="M392 300 L300 208 L214 146 L96 28" fill="none" stroke="#e79a2f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- 紫线 -->
+            <path d="M28 190 H182 L268 274 H392" fill="none" stroke="#7a5fc0" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- 站点 -->
+            <g fill="#fff" stroke-width="3.5">
+              <circle cx="28" cy="82" r="6" stroke="#e2483f"/><circle cx="88" cy="82" r="6" stroke="#e2483f"/>
+              <circle cx="214" cy="146" r="6" stroke="#e2483f"/><circle cx="300" cy="146" r="6" stroke="#e2483f"/><circle cx="392" cy="146" r="6" stroke="#e2483f"/>
+              <circle cx="72" cy="306" r="6" stroke="#2878c8"/><circle cx="72" cy="250" r="6" stroke="#2878c8"/><circle cx="150" cy="34" r="6" stroke="#2878c8"/>
+              <circle cx="268" cy="118" r="6" stroke="#2fa36b"/><circle cx="330" cy="180" r="6" stroke="#2fa36b"/><circle cx="330" cy="268" r="6" stroke="#2fa36b"/><circle cx="226" cy="268" r="6" stroke="#2fa36b"/>
+              <circle cx="392" cy="300" r="6" stroke="#e79a2f"/><circle cx="300" cy="208" r="6" stroke="#e79a2f"/><circle cx="96" cy="28" r="6" stroke="#e79a2f"/>
+              <circle cx="28" cy="190" r="6" stroke="#7a5fc0"/><circle cx="110" cy="190" r="6" stroke="#7a5fc0"/><circle cx="268" cy="274" r="6" stroke="#7a5fc0"/>
+            </g>
+            <!-- 换乘站 -->
+            <g fill="#fff" stroke="#16324f" stroke-width="4">
+              <circle cx="150" cy="118" r="9"/><circle cx="214" cy="146" r="9"/><circle cx="182" cy="224" r="9"/>
+            </g>
+            <g font-size="11" fill="#6c8199" font-family="sans-serif">
+              <text x="18" y="68">西站</text><text x="150" y="105">中央枢纽</text><text x="222" y="136">换乘广场</text>
+              <text x="338" y="262">滨江</text><text x="34" y="330">南端</text>
+            </g>
+          </svg>
+        </div>
+        <p class="art-cap">示意线网 · 非游戏实际地图</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="wrap stats-in">
+      <div class="stat"><b>15</b><span>可游玩地图</span></div>
+      <div class="stat"><b>5</b><span>新增城市剧本</span></div>
+      <div class="stat"><b>2</b><span>外围走廊扩图</span></div>
+      <div class="stat"><b>1.1</b><span>最新版本 · 已发布至仓库</span></div>
+    </div>
+  </div>
+
+  <!-- 社区版声明 -->
+  <div class="wrap" style="padding-top:34px">
+    <div class="notice">
+      <span class="ic">ⓘ</span>
+      <div><strong>这是社区修改版，不是官方版本。</strong> 原作《城市与地铁》由 VinsonFung 开发，本站在其基础上制作，仅供非商业学习、研究与游玩。不得收费、投放广告、接受商业赞助或以其他方式变现；已保留原作者署名、原版链接、非商业许可与第三方资料声明。<a href="#credits">查看完整署名 ↓</a></div>
+    </div>
+  </div>
+
+  <!-- 城市剧本 -->
+  <section id="cities">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="sec-kicker">MAPS &amp; SCENARIOS</span>
+        <h2>五座新城市，两条外围走廊</h2>
+        <p class="sec-desc">社区地图采用 OpenStreetMap 地理数据绘制道路、岸线与地标，按剧本设置人口、岗位、枢纽需求、开放年份与历史事件。史实目标用于校准关键年份、设施与票价；推测性扩张只作为可选挑战。</p>
+      </div>
+
+      <div class="city-grid">
+        <article class="city">
+          <span class="flag flag-new">新增</span>
+          <div class="yr">1985</div><h3>新加坡</h3>
+          <p>新镇可以先接，需求随后成长。围绕新镇连网、滨海湾与裕廊岛填海展开，加入兀兰延长线、F1 与综合度假区，并配置合同机制。</p>
+          <div class="bar"><i style="background:var(--red)"></i><i style="background:var(--blue)"></i><i style="background:var(--green)"></i></div>
+        </article>
+        <article class="city">
+          <span class="flag flag-new">新增</span>
+          <div class="yr">2000</div><h3>深圳</h3>
+          <p>从深南大道到前海与龙岗。加入机场航站楼迁移、口岸开放、深圳北站启用与大运会等阶段内容，覆盖合同机制与分期成陆。</p>
+          <div class="bar"><i style="background:var(--blue)"></i><i style="background:var(--orange)"></i><i style="background:var(--purple)"></i></div>
+        </article>
+        <article class="city">
+          <span class="flag flag-new">新增</span>
+          <div class="yr">2000</div><h3>南京</h3>
+          <p>从紫金山下的老城接向长江两岸。加入青奥会、江北新区、南京南站与机场接驳，按阶段推进跨江与外围走廊。</p>
+          <div class="bar"><i style="background:var(--green)"></i><i style="background:var(--red)"></i><i style="background:var(--blue)"></i></div>
+        </article>
+        <article class="city">
+          <span class="flag flag-new">新增</span>
+          <div class="yr">2010</div><h3>苏州</h3>
+          <p>从运河古城到金鸡湖两岸。覆盖吴江、昆山城区与苏南硕放机场，按剧本年份开放片区并接入沪宁方向的枢纽需求。</p>
+          <div class="bar"><i style="background:var(--purple)"></i><i style="background:var(--green)"></i><i style="background:var(--orange)"></i></div>
+        </article>
+        <article class="city">
+          <span class="flag flag-new">新增</span>
+          <div class="yr">1990</div><h3>纽约都会区</h3>
+          <p>接手纽约骨干线网，连接哈德逊河两岸。可继承简化的地铁、PATH 与斯塔滕岛铁路骨架，也可从零建设；含行政区与街区地名。</p>
+          <div class="bar"><i style="background:var(--red)"></i><i style="background:var(--blue)"></i><i style="background:var(--green)"></i></div>
+        </article>
+        <article class="city">
+          <span class="flag flag-ext">扩图</span>
+          <div class="yr">广州 · 上海</div><h3>外围走廊补充</h3>
+          <p>广州延伸至佛山核心区、花都、从化城区、增城与南沙，补上黄埔至增城建设走廊；上海补充嘉定、青浦、松江、金山、奉贤、临港及昆山方向。</p>
+          <div class="bar"><i style="background:var(--orange)"></i><i style="background:var(--blue)"></i><i style="background:var(--purple)"></i></div>
+        </article>
+      </div>
+
+      <div class="legacy">
+        <h3>原版地图同样保留</h3>
+        <p>九座真实城市与青湾教程继续使用原版剧本参数，社区版在其之上叠加功能改进。</p>
+        <div class="chips">
+          <span class="chip">广州 <em>1990</em></span><span class="chip">杭州 <em>2000</em></span>
+          <span class="chip">香港 <em>1970</em></span><span class="chip">台北 <em>1990</em></span>
+          <span class="chip">北京 <em>1990</em></span><span class="chip">东京 <em>1950</em></span>
+          <span class="chip">上海 <em>1990</em></span><span class="chip">武汉 <em>2000</em></span>
+          <span class="chip">巴黎 <em>1900</em></span><span class="chip">青湾教程 <em>2000</em></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 建设与运营 -->
+  <section class="alt" id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="sec-kicker">BUILD &amp; OPERATE</span>
+        <h2>先规划全线，再按预算分段开通</h2>
+        <p class="sec-desc">最直接的变化是建设流程：玩家可以先规划整条线路，再按需求和预算选择要开通的区段，并在运营后继续调整车站、运力和商业配置。</p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat"><div class="num" style="background:var(--red)">01</div><h3>草案与分段开通</h3><p>草案按线路归组并显示区段预算，由玩家选择先建哪些新建区段；同一条线可从不同端推进，自动编号避开已使用的线路名。</p></div>
+        <div class="feat"><div class="num" style="background:var(--blue)">02</div><h3>车站与区间改造</h3><p>调整车站平面位置与标高，已建车站改造需付费；增加大型枢纽扩容，并允许在同一站间区段设置地下、地面与高架之间的高程变化。</p></div>
+        <div class="feat"><div class="num" style="background:var(--green)">03</div><h3>商业与列车管理</h3><p>车站总览查看商业预测并批量开发选中车站；列车界面集中显示可用车型与各线配车，可开启每月自动购买缺失列车。</p></div>
+        <div class="feat"><div class="num" style="background:var(--orange)">04</div><h3>客流与自动命名</h3><p>车站详情分列进站、出站与站内换乘，展示站外换乘的步行距离、预计时间与客流。中国城市自动站名优先选用合适的道路名，社区名作为后备。</p></div>
+        <div class="feat"><div class="num" style="background:var(--purple)">05</div><h3>票价与财政核对</h3><p>核对全部 15 张地图的开局票价与拨款配置，调整纽约、北京、新加坡、深圳与杭州的默认票价；纽约采用 1990 年 1.15 美元统一票价。</p></div>
+        <div class="feat"><div class="num" style="background:var(--navy)">06</div><h3>地图细节与验证</h3><p>OSM 底图绘制道路、岸线与地标；纽约修复哈德逊河水面显示与铁路枢纽重复标注。最近一轮通过 15 张地图配置检查与站名迁移测试。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 宣传片 -->
+  <section id="media">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="sec-kicker">PROMO</span>
+        <h2>宣传片与画面</h2>
+        <p class="sec-desc">宣传片展示深圳、苏州、新加坡与南京地图，以及分段开通、车站标高和位置调整、批量商业开发等操作。</p>
+      </div>
+      <div class="media-grid">
+        <div class="video-box">
+          <video controls preload="metadata" poster="assets/img/screenshot-map-selection.png" src="assets/promo.mp4">浏览器不支持视频播放。</video>
+          <div class="video-cap">Starry 版 1.0 宣传片 · 配乐更新版</div>
+        </div>
+        <div class="shot">
+          <img src="assets/img/screenshot-guangzhou-night.png" alt="广州 2.5D 夜景与线网">
+          <p>2.5D 视图中的建筑、江面、地标与地铁线网（原版画面）</p>
+        </div>
+      </div>
+      <div class="shots-row">
+        <div class="shot">
+          <img src="assets/img/screenshot-map-selection.png" alt="地图选择页">
+          <p>地图选择：城市概况与历史阶段年表</p>
+        </div>
+        <div class="shot">
+          <img src="assets/img/screenshot-tokyo-day.png" alt="东京 2D 白天地图">
+          <p>2D 地图中的街区、既有路网与开局线路</p>
+        </div>
+        <div class="shot">
+          <img src="assets/img/screenshot-economy-statistics.png" alt="经济统计界面">
+          <p>经济统计：财政、增长与交通效率</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 更新日志摘要 -->
+  <section class="alt" id="changelog">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="sec-kicker">CHANGELOG</span>
+        <h2>版本记录</h2>
+        <p class="sec-desc">首版记录新加坡、深圳、南京、苏州与广州、上海扩图；1.1 的纽约都会区与全图票价核对已推送到发布仓库，GitHub Pages 已上线，Cloudflare Pages 域名待项目创建后生效。</p>
+      </div>
+      <div class="log-list">
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.1</div><div class="log-date">2026-11-11 · 已发布至仓库</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>纽约都会区与全图票价核对</h3>
+            <div class="log-group"><h4>地图与历史</h4><ul>
+              <li><strong>新增纽约 1990 剧本</strong>：可继承简化的地铁、PATH 与斯塔滕岛铁路骨干，或从零建设。</li>
+              <li>修复哈德逊河水面显示与铁路枢纽重复标注，补充行政区、街区地名与中文自动站名。</li>
+            </ul></div>
+            <div class="log-group"><h4>票价与财政</h4><ul>
+              <li>核对全部 15 张地图的开局票价与拨款配置，调整纽约、北京、新加坡、深圳、杭州默认票价。</li>
+              <li>纽约采用 1990 年 <strong>1.15 美元</strong>统一票价，并调整中期拨款，缓解造价上涨带来的建设能力下降。</li>
+            </ul></div>
+            <div class="log-group"><h4>验证</h4><ul><li>通过 15 张地图配置检查、纽约预置站名、新站自动命名与旧档英文站名转换测试。</li></ul></div>
+            <div class="log-group"><h4>发布</h4><ul><li>成品已推送到发布仓库 <code>main</code> 分支，GitHub Pages 已可直接游玩；Cloudflare Pages 域名待创建同名项目后生效，详见<a href="changelog.html">完整更新日志</a>。</li></ul></div>
+          </div>
+        </div>
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.0</div><div class="log-date">Starry 版首版</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>四座新城市、两张扩图与建设运营流程改进</h3>
+            <div class="log-group"><h4>交付</h4><ul>
+              <li>整理更新日志、原作者署名、许可证与第三方资料说明，并制作宣传片。</li>
+              <li>地图与功能迭代结合实际游玩反馈，人口、岗位与财政采用剧本参数。</li>
+            </ul></div>
+            <p style="margin:14px 0 0"><a href="changelog.html">查看完整更新日志 <span class="arrow">→</span></a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 署名与许可 -->
+  <section id="credits">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="sec-kicker">CREDITS &amp; LICENSE</span>
+        <h2>署名与许可</h2>
+      </div>
+      <div class="credits">
+        <div class="credit-card">
+          <h3>原作与社区版</h3>
+          <p>原作《城市与地铁》由 <strong>VinsonFung</strong> 开发并持续维护。Starry 为<strong>非商业社区修改版</strong>，与官方版本无关，也不代表原作者立场。</p>
+          <ul class="link-list">
+            <li><span class="lab">原作者</span><a href="https://github.com/VinsonFung" target="_blank" rel="noopener">VinsonFung ↗</a></li>
+            <li><span class="lab">原版网站</span><a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">city-and-metro.pages.dev ↗</a></li>
+            <li><span class="lab">原始仓库</span><a href="https://github.com/VinsonFung/city-and-metro" target="_blank" rel="noopener">VinsonFung/city-and-metro ↗</a></li>
+            <li><span class="lab">社区版仓库</span><a href="https://github.com/starrysky1418/city-and-metro-starry" target="_blank" rel="noopener">starrysky1418/city-and-metro-starry ↗</a></li>
+            <li><span class="lab">在线游玩</span><a href="https://starrysky1418.github.io/city-and-metro-starry/" target="_blank" rel="noopener">GitHub Pages（已上线）↗</a></li>
+            <li><span class="lab">更新日志</span><a href="changelog.html">本站完整版本记录 →</a></li>
+          </ul>
+        </div>
+        <div class="credit-card">
+          <h3>许可与第三方资料</h3>
+          <p>原版及社区改版均<strong>严禁商业使用</strong>：不得收费游玩、出售、投放广告、接受商业赞助或用于其他商业变现；免费发布、修改或改名不构成例外。</p>
+          <p>社区版新增与扩展的地图底图使用 © OpenStreetMap 贡献者数据，依 <strong>ODbL 1.0</strong> 提供；预处理地理数据库可从游戏仓库或部署版本获取。OpenCC-JS、pinyin-pro、Simple Icons 等组件保留各自许可。</p>
+          <div class="legal-note">发布时必须在醒目位置标明「社区修改版」，保留原有许可证、版权与第三方署名，清楚说明修改内容，不得冒充官方版本；请勿向原作者仓库提交 Pull Request。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap foot-in">
+    <p>Copyright © 2026 VinsonFung · Starry 为非商业社区修改版 · 原版及社区版均严禁商业使用</p>
+    <div class="foot-links"><a href="index.html">首页</a><a href="changelog.html">更新日志</a><a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">原版网站 ↗</a></div>
+  </div>
+</footer>
+
+</body>
+</html>
