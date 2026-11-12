@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>城市与地铁 · Starry 社区版</title>
-<meta name="description" content="《城市与地铁》Starry 非商业社区修改版：新增新加坡、深圳、南京、苏州、纽约五座城市剧本，扩展广州与上海外围走廊，改进草案分段开通、车站改造与列车调度。">
+<meta name="description" content="《城市与地铁》Starry 非商业社区修改版：19 张可游玩地图，含八座社区自制城市剧本与广州、上海外围扩图，整合 v2.7 引擎并复核全图史实、票价与热点地区。">
 <meta name="theme-color" content="#eaf1f7">
 <link rel="icon" type="image/png" href="assets/img/favicon.png">
 <link rel="stylesheet" href="assets/style.css">
@@ -44,9 +44,9 @@
   <div class="hero">
     <div class="wrap hero-grid">
       <div>
-        <span class="eyebrow"><i class="dot"></i> 非商业社区修改版 · Starry 版 1.1</span>
+        <span class="eyebrow"><i class="dot"></i> 非商业社区修改版 · Starry 版 1.2</span>
         <h1>在真实城市里，<br><span class="accent">画出你自己的地铁</span></h1>
-        <p class="hero-sub">在原版的客流模拟、线网规划与城市经营之上，新增五座城市剧本、扩展广州与上海外围走廊，并把「先规划全线、再分段开通、运营后持续调整」变成完整的操作流程。</p>
+        <p class="hero-sub">在原版的客流模拟、线网规划与城市经营之上，新增八座城市剧本、扩展广州与上海外围走廊，整合 v2.7 引擎并为全部地图复核史实、票价与热点地区；「先规划全线、再分段开通、运营后持续调整」始终是完整的操作流程。</p>
         <p class="hero-note">原作由 VinsonFung 开发 · 本站为非官方社区修改版</p>
         <div class="hero-actions">
           <a class="btn btn-primary" data-play href="../">打开游戏 <span class="arrow">→</span></a>
@@ -103,10 +103,10 @@
   <!-- Stats -->
   <div class="stats">
     <div class="wrap stats-in">
-      <div class="stat"><b>15</b><span>可游玩地图</span></div>
-      <div class="stat"><b>5</b><span>新增城市剧本</span></div>
+      <div class="stat"><b>19</b><span>可游玩地图</span></div>
+      <div class="stat"><b>8</b><span>社区自制城市剧本</span></div>
       <div class="stat"><b>2</b><span>外围走廊扩图</span></div>
-      <div class="stat"><b>1.1</b><span>最新版本 · 已上线</span></div>
+      <div class="stat"><b>1.2</b><span>最新版本 · 已上线</span></div>
     </div>
   </div>
 
@@ -193,8 +193,8 @@
         <div class="feat"><div class="num" style="background:var(--blue)">02</div><h3>车站与区间改造</h3><p>调整车站平面位置与标高，已建车站改造需付费；增加大型枢纽扩容，并允许在同一站间区段设置地下、地面与高架之间的高程变化。</p></div>
         <div class="feat"><div class="num" style="background:var(--green)">03</div><h3>商业与列车管理</h3><p>车站总览查看商业预测并批量开发选中车站；列车界面集中显示可用车型与各线配车，可开启每月自动购买缺失列车。</p></div>
         <div class="feat"><div class="num" style="background:var(--orange)">04</div><h3>客流与自动命名</h3><p>车站详情分列进站、出站与站内换乘，展示站外换乘的步行距离、预计时间与客流。中国城市自动站名优先选用合适的道路名，社区名作为后备。</p></div>
-        <div class="feat"><div class="num" style="background:var(--purple)">05</div><h3>票价与财政核对</h3><p>核对全部 15 张地图的开局票价与拨款配置，调整纽约、北京、新加坡、深圳与杭州的默认票价；纽约采用 1990 年 1.15 美元统一票价。</p></div>
-        <div class="feat"><div class="num" style="background:var(--navy)">06</div><h3>地图细节与验证</h3><p>OSM 底图绘制道路、岸线与地标；纽约修复哈德逊河水面显示与铁路枢纽重复标注。最近一轮通过 15 张地图配置检查与站名迁移测试。</p></div>
+        <div class="feat"><div class="num" style="background:var(--purple)">05</div><h3>票价与财政核对</h3><p>逐图核对开局票价、里程票制、起始资金与月拨款，按各城史实开局单独校准；保留社区版口径，不跟随原版 2.7 的整套经济重平衡。</p></div>
+        <div class="feat"><div class="num" style="background:var(--navy)">06</div><h3>地图细节与验证</h3><p>OSM 底图绘制道路、岸线与地标；19 张地图逐图通过史实、票价、热点地区与引用完整性校验，并用无头浏览器全图开档验收。</p></div>
       </div>
     </div>
   </section>
@@ -240,9 +240,27 @@
       <div class="sec-head">
         <span class="sec-kicker">CHANGELOG</span>
         <h2>版本记录</h2>
-        <p class="sec-desc">首版记录新加坡、深圳、南京、苏州与广州、上海扩图；1.1 的纽约都会区与全图票价核对已上线，正式地址 city-and-metro-starry.pages.dev 与 GitHub Pages 镜像均可直接游玩。</p>
+        <p class="sec-desc">首版记录新加坡、深圳、南京、苏州与广州、上海扩图；1.1 的纽约都会区与全图票价核对已上线，1.2 完成 v2.7 引擎整合、全图史实／票价／热点复核与天津，正式地址 city-and-metro-starry.pages.dev 与 GitHub Pages 镜像均可直接游玩。</p>
       </div>
       <div class="log-list">
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.2</div><div class="log-date">2026-11-12 · 已上线</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>v2.7 引擎整合、全图复核与天津</h3>
+            <div class="log-group"><h4>引擎与地图</h4><ul>
+              <li>整合原版 v2.7 的线路图回放、城市总评、城市特色机制库与地铁芯管理；社区发行版版本独立递增为 <strong>1.2</strong>，旧档可直接继续游玩。</li>
+              <li>新增<strong>天津 2004</strong>，同期纳入伦敦与成都、重庆；当前共 <strong>19 张可游玩地图</strong>。</li>
+            </ul></div>
+            <div class="log-group"><h4>复核与优化</h4><ul>
+              <li>逐图核对历史事件、开局票价与拨款、热点地区：九张老图补回 2.7 城市特色，票价保留社区版按史实开局校准的口径，热点补充与调整 158 处、异常 0 项。</li>
+              <li>缓存高频查找与每帧分组，减少重复分配；全图开档验收浏览器异常 0，源码与发布目录资源清单一致。</li>
+            </ul></div>
+            <p style="margin:14px 0 0"><a href="changelog.html">阅读完整更新日志 <span class="arrow">→</span></a></p>
+          </div>
+        </div>
         <div class="log-item">
           <div class="log-meta">
             <div class="log-ver">1.1</div><div class="log-date">2026-11-11 · 已上线</div>

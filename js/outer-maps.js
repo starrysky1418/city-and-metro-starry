@@ -14,6 +14,7 @@
       for (const o of Object.values(v)) shift(o);
     };
     for (const key of ['centers','landmarks','histTasks','dynTasks','scenarios']) shift(data[key]);
+    for (const era of data.eras || []) shift(era.goals);
     const point = p => [p[0]+dx,p[1]+dy];
     const poly = p => typeof p[0][0] === 'number' ? p.map(point) : p.map(poly);
     for (const r of [...data.regions,...(data.reclaim || [])]) if (r.poly) r.poly = poly(r.poly);
@@ -107,6 +108,7 @@
         ['惠南',121.761,31.054,22000,10000],['滴水湖',121.930,30.909,10000,12000],['浦东机场',121.804,31.152,2000,25000],
       ].filter(([,lon,lat]) => { const [x,y]=xy(lon,lat); return x>=0 && x<geo.w && y>=0 && y<geo.h; }));
       hub('sh-kunshan-hub','昆山南站','rail',120.957,31.353,2010,[[2010,2],[2020,5]]);
+      d.placeYears = Object.assign({}, d.placeYears, { '松江大学城': 2001 });
       hub('sh-songjiang-hub','上海松江站','rail',121.226,30.984,2010,[[2010,1.8],[2025,6]]);
       replaceAirport('浦东机场',121.804,31.152,[2005,1999,2008,2015,2017]);
       const event = d.events.find(e => e.title==='浦东国际机场启用');

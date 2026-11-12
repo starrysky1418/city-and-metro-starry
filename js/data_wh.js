@@ -19,6 +19,109 @@
   const wangjiadun = poly([[30.6215, 114.2465], [30.6215, 114.2600], [30.6110, 114.2700], [30.5995, 114.2690], [30.5995, 114.2515], [30.6105, 114.2445]]);
 
   const data = {
+    // 城市特色（v2.7 社区补录）：逐条校验后移入，不删改社区版原有字段；
+    // 依赖口岸连接/硬编码格坐标的条目已跳过，避免社区版外扩地图错位。
+    traits: [
+      {
+        "use": "finance",
+        "flavor": "cn"
+      },
+      {
+        "use": "crossing",
+        "star": true,
+        "icon": "bridge",
+        "label": "两江三镇",
+        "text": "长江与汉江把城市分成三镇，越江线路最贵，也最有价值",
+        "why": "2012 年以前武汉没有过江地铁，三镇之间只靠桥梁、隧道和轮渡。"
+      },
+      {
+        "use": "disaster",
+        "level": "mid",
+        "star": true,
+        "icon": "wave",
+        "label": "2016 年特大内涝",
+        "text": "一周暴雨让城区大面积积水，出行骤降、满意度下滑",
+        "on": {
+          "y": 2016,
+          "m": 7,
+          "title": "特大暴雨与内涝",
+          "desc": "6 月底到 7 月初，武汉一周降雨超过 560 毫米，破了气象记录，城区大面积积水，交通严重受阻。"
+        },
+        "why": "2016 年 6 月 30 日至 7 月 6 日，武汉周降雨量超过 560 毫米，为有气象记录以来最高。"
+      },
+      {
+        "use": "foresight",
+        "level": "light",
+        "label": "武汉站提前布局",
+        "id": "wh-st",
+        "at": "wh_station",
+        "ym": [
+          2009,
+          12
+        ],
+        "before": 2008,
+        "r": 7,
+        "region": "hongshan",
+        "title": "武汉站启用",
+        "hit": "武广高铁开通，早已通车的{st}站让旅客一下车就能换乘地铁。",
+        "miss": "武广高铁开通，武汉站还没有地铁，旅客只能换公交和出租车。",
+        "why": "2009 年 12 月武广高铁开通，武汉站同时启用。"
+      },
+      {
+        "use": "guard",
+        "level": "light",
+        "label": "三镇古建",
+        "guards": [
+          "wh_yhl",
+          "wh_customs",
+          "wh_qingchuan",
+          "wh_guiyuan",
+          "wh_baotong"
+        ],
+        "why": "黄鹤楼、晴川阁、归元寺和宝通寺是武汉的历史名胜，汉口保留着江汉关等近代建筑。不划整片历史城区，因为真实的轻轨 1 号线就是高架穿过汉口。"
+      },
+      {
+        "use": "transition",
+        "level": "light",
+        "label": "硚口古田转型",
+        "region": "qiaokou",
+        "close": {
+          "y": 2013,
+          "m": 3,
+          "title": "古田老工业区转型",
+          "desc": "硚口古田一带曾是化工企业密集的老工业区，工厂陆续外迁，片区转向总部办公和文化创意园区。"
+        },
+        "replan": [
+          {
+            "year": 2014,
+            "region": "qiaokou",
+            "plan": "mix"
+          }
+        ],
+        "why": "古田曾是武汉化工企业密集的地区，2010 年代逐步转型。"
+      },
+      {
+        "use": "megaEvent",
+        "level": "light",
+        "label": "2019 军运会",
+        "bid": {
+          "y": 2015,
+          "m": 5,
+          "title": "武汉获得世界军人运动会承办权",
+          "desc": "国际军体理事会决定由武汉承办 2019 年第七届世界军人运动会，地铁建设随之提速。"
+        },
+        "open": [
+          2019,
+          10
+        ],
+        "why": "2015 年 5 月，武汉获得 2019 年第七届世界军人运动会承办权。"
+      },
+      {
+        "use": "scenic",
+        "label": "东湖",
+        "why": "东湖风景区不能开发，线路要绕湖或从地下穿过。"
+      }
+    ],
     city: '武汉', terrainRevision: 2, riverName: '长江', hsrYear: 2009,
     terrainCorrection: {
       title: '武汉水域校正', summary: '武汉水域已校正，原有车站和线路保留',
@@ -300,4 +403,34 @@
     },
     cam: { cx: 77, cy: 110, zoom: 16 },
   });
+
+  // 补充热点地区（2026-11-12）：知名但此前未列入「重要设施」的地点。
+  // 坐标取自 OSM 底图同名点，缺失时按经纬度投影；规模按同城同类设施的中低档取值。
+  // 追加在数组末尾，不打乱既有设施顺序；引擎按 id 生成缓存键，旧存档不受影响。
+  (function (data) {
+    data.facilities.push(
+      { id: 'wh_hot_1', n: '江汉关·黎黄陂路', t: 'scenic', at: [73.1, 102], w: 0.016, note: '汉口原租界历史街区' },
+      { id: 'wh_hot_2', n: '晴川阁', t: 'scenic', at: [76.6, 114.8], w: 0.014, note: '汉阳龟山东麓，与黄鹤楼隔江相望' },
+      { id: 'wh_hot_3', n: '古德寺', t: 'scenic', at: [76.2, 97.2], w: 0.012, note: '汉口近代佛教建筑' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'wh'; }).data);
+
+  // 热点地区调整（2026-11-12）：市中心合并 + 外围补充。
+  // 代表设施保留原 id；被合并设施从数组移除，需求按 w/pax 叠加。
+  // 市中心按传统老城中心半径 17 格聚类，3 格内相邻设施并入代表设施；
+  // 接驳口 / 跑道 / 有停用年 / 铁路与机场枢纽不参与合并；外围补充见下方 push。
+  (function (data) {
+    var fs = data.facilities, drop = {'wh_hot_1':1,'wh_xhl':1,'wh_icec':1,'wh_zsgy':1,'wh_xiehe':1,'wh_hot_3':1};
+    for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
+    var upd = {
+      'wh_jhl': { w: 0.063, note: "市中心热点合并：含 江汉关·黎黄陂路（需求并入本设施，位置以本设施为准）" },
+      'wh_wg': { w: 0.08, note: "市中心热点合并：含 新华路体育场、武汉国际会展中心、中山公园、协和医院（需求并入本设施，位置以本设施为准）" },
+      'wh_jiangtan': { w: 0.022, note: "市中心热点合并：含 古德寺（需求并入本设施，位置以本设施为准）" },
+    };
+    for (var j = 0; j < fs.length; j++) { var u = upd[fs[j].id]; if (u) for (var k in u) fs[j][k] = u[k]; }
+    data.facilities.push(
+      { id: 'wh_outer_1', n: '木兰草原', t: 'park', at: [115.7, 24.6], w: 0.012, note: '黄陂木兰生态旅游区' },
+      { id: 'wh_outer_2', n: '后官湖湿地公园', t: 'park', at: [19.8, 117.5], w: 0.01, note: '蔡甸后官湖绿道' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'wh'; }).data);
 })(window.CM);

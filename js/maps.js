@@ -60,6 +60,7 @@
     cfg.macro = m.kind === 'real' ? (m.cfg.macro || 'auto') : null;
     addHubPrices(cfg);
     m.cfg = cfg;
+    CM.Traits?.compile(m);
     MAPS[m.id] = m;
   }
   for (const id of ['gz','sh']) CM.expandOriginalMap(MAPS[id]);

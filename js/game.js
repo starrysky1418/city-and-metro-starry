@@ -588,7 +588,12 @@
     let r;
     try { r = fn(d.net); } catch (e) { console.error(e); r = { error: '操作未能完成，已撤回（' + e.message + '）' }; }
     if (!(r && r.error)) { const bad = M.validate(d.net); if (bad) r = { error: '操作已撤回：' + bad }; }
-    if (r && r.error) { d.net = JSON.parse(snap); return r; }
+    if (r && r.error) {
+      d.net = JSON.parse(snap);
+      d.compVer = -1;
+      d.evalVer = -1;
+      return r;
+    }
     d.undo.push(snap); if (d.undo.length > 120) d.undo.shift();
     d.redo = [];
     d.ver++;
@@ -765,6 +770,16 @@
       const sn = this.congSnapshot();
       if (sn) { const names = Array.from(ev.affectedLines).map(function (lid) { return d.net.lines[lid] && d.net.lines[lid].name; }).filter(Boolean); sn.label = names.length ? names.slice(0, 2).join('、') + (names.length > 2 ? ' 等' : '') : newSt.length + ' 座新站'; (this.congRef || (this.congRef = {})).build = sn; }
     }
+    // 线网成长回放（v2.7）：记下本次拆除的车站、区段和线路，回放时按当时的样子画出来
+    { const off = this.net, gone = this.netGone || { stations: {}, segments: {}, lines: {} }, at = [this.clock.y, this.clock.m]; let any = false;
+      const keepLine = function (lid) { const L = off.lines[lid]; if (L) gone.lines[lid] = { id: lid, name: L.name, color: L.color }; };
+      for (const id in off.segments) if (!d.net.segments[id]) { const s = off.segments[id]; gone.segments[id] = { id: id, line: s.line, a: s.a, b: s.b, type: s.type, pts: s.pts || undefined, curve: s.curve || undefined, built: s.built || null, lh: s.lh || undefined, gone: at }; any = true; keepLine(s.line); }
+      for (const id in off.stations) if (!d.net.stations[id]) { const s = off.stations[id]; gone.stations[id] = Object.assign(M.clone(s), { built: s.built || null, gone: at }); any = true; }
+      // 贯通、拆开、拆出支线：轨道不变，区段改归另一条线路。lh 记下每次改归前属于哪条线 [年, 月, 原线路]；被并掉的线路记下名称和颜色
+      for (const id in d.net.segments) { const o = off.segments[id], s = d.net.segments[id]; if (!o || o.line === s.line) continue; s.lh = (o.lh || []).concat([[at[0], at[1], o.line]]); keepLine(o.line); any = true; }
+      for (const id in off.lines) if (!d.net.lines[id]) { keepLine(id); any = true; }
+      if (any) this.netGone = gone; }
+    const netBefore = this.net;
     this.net = d.net;
     for (const lid of Object.keys(this.net.lines)) {
       if (this.net.lines[lid].phased && M.lineTopo(this.net, lid).topo !== 'phased') delete this.net.lines[lid].phased;
@@ -773,6 +788,7 @@
     this.rev++;
     this.compiled = M.compile(this.net, this.city);
     if (CM.Fleet && this.fleet) { CM.Fleet.applyAdd(this, ev.fleetAdd); CM.Fleet.sync(this); this.fleet.ver++; }   // 随线配车落实；拆除线路的列车回到车辆段
+    if (CM.OpsAlerts) { try { CM.OpsAlerts.restructure(this, netBefore); } catch (e) { console.error(e); } }   // 贯通、拆开后地铁芯的历史记录跟着调整（只影响显示）
     this.model.cancelPredict();
     // 沿线拆迁减少了人口与就业：立即重算小区人口岗位与出行需求，不等到月度结算
     if (ev.demolitions.length) { this.model.buildZones(); this.model.buildDemand(); }
@@ -781,6 +797,10 @@
     this.impactReport = { status: 'waiting', at: [this.clock.y, this.clock.m] };
     this.draft = null;
     if (remainder) {
+      for (const id in remainder.segments) {
+        const segment = this.net.segments[id];
+        if (segment && segment.lh) remainder.segments[id].lh = M.clone(segment.lh);
+      }
       for (const id of phase.selected) remainder.segments[id] = M.clone(this.net.segments[id]);
       for (const id of phase.stations) if (!beforeNet.stations[id]) {
         const s = this.net.stations[id];
@@ -842,11 +862,14 @@
   };
 
   // ---------------- 查询 ----------------
-  Game.prototype.zoneName = function (z) {
+  Game.prototype.zoneName = function (z, acceptPlace) {
     const m = this.model;
     const x = m.zCx[z], y = m.zCy[z];
     let best = null, bd = 1e9;
-    for (const p of D.places) { const d = U.dist(x, y, p[1], p[2]); if (d < bd) { bd = d; best = p[0]; } }
+    for (const p of D.places) {
+      if (acceptPlace && (!acceptPlace(p[1], p[2]) || (D.placeYears && D.placeYears[p[0]] > this.clock.y))) continue;
+      const d = U.dist(x, y, p[1], p[2]); if (d < bd) { bd = d; best = p[0]; }
+    }
     // 附近有地名时只说地名（v2.6.1 玩家反馈）：片区按街道划分、范围很大，「石榴岗一带（官洲·生物岛）」读起来像在岛上
     if (bd < 5) return best + '一带';
     const rg = this.city.regionAt(x, y);
@@ -953,6 +976,7 @@
       opsNote: this.opsNote || undefined,   // 地铁芯的过载提醒：持续月数与静默期（v2.5）
       events: this.events.slice(-300),
       history: this.history.slice(-1200),
+      netGone: this.netGone || undefined, cityReview: this.cityReview || undefined, foresight: this.foresight || undefined,
       firedEvents: this.firedEvents, trafficYear: this.model.year, trafficChangedYm: this.trafficChangedYm,
       unlockAll: this.unlockAll || undefined, startYear: this.startYear || undefined, eraLog: this.eraLog || undefined,
       eraBase: this.eraBase || undefined, startBase: this.startBase || undefined,
@@ -1015,6 +1039,8 @@
       g.opsNote = s.opsNote || null;
       g.trafficChangedYm = s.trafficChangedYm ?? null;
       g.events = s.events || []; g.history = s.history || []; g.firedEvents = s.firedEvents || {};
+      g.netGone = s.netGone || null; g.cityReview = s.cityReview || null;
+      g.foresight = s.foresight || null; g.city.foresight = g.foresight;
       g.favs = { stations: (s.favs && s.favs.stations) || [], lines: (s.favs && s.favs.lines) || [], names: (s.favs && s.favs.names) || {} };
       g.mapInit = s.mapInit || null;
       g.unlockAll = !!s.unlockAll && g.mode === 'free'; g.city.unlockAll = g.unlockAll;

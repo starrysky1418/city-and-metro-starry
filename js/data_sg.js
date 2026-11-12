@@ -118,4 +118,40 @@
       },
     },
   }));
+
+  // 补充热点地区（2026-11-12）：知名但此前未列入「重要设施」的地点。
+  // 坐标取自 OSM 底图同名点，缺失时按经纬度投影；规模按同城同类设施的中低档取值。
+  // 追加在数组末尾，不打乱既有设施顺序；引擎按 id 生成缓存键，旧存档不受影响。
+  (function (data) {
+    data.facilities.push(
+      { id: 'sg_hot_1', n: '新加坡植物园', t: 'park', at: [95.9, 74.5], w: 0.02, note: '1859 年建园，2015 年列入世界遗产' },
+      { id: 'sg_hot_2', n: '滨海湾花园', t: 'park', at: [119.3, 93.5], y0: 2012, w: 0.024, note: '2012 年开放' },
+      { id: 'sg_hot_3', n: '鱼尾狮公园', t: 'scenic', at: [113, 91.9], y0: 1972, w: 0.016, note: '1972 年设立的地标' },
+      { id: 'sg_hot_4', n: '牛车水', t: 'shop', at: [108.4, 93.3], w: 0.026, note: '华人历史街区' },
+      { id: 'sg_hot_5', n: '小印度', t: 'shop', at: [110.9, 81.3], w: 0.022, note: '实龙岗路一带的印度街区' },
+      { id: 'sg_hot_6', n: '新加坡动物园', t: 'scenic', at: [83.7, 38.2], y0: 1973, w: 0.016, note: '1973 年开放' },
+      { id: 'sg_hot_7', n: '滨海湾金沙', t: 'shop', at: [115.7, 91.9], y0: 2010, w: 0.028, note: '2010 年开业的综合度假村' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'sg'; }).data);
+
+  // 热点地区调整（2026-11-12）：市中心合并 + 外围补充。
+  // 代表设施保留原 id；被合并设施从数组移除，需求按 w/pax 叠加。
+  // 市中心按传统老城中心半径 14 格聚类，3 格内相邻设施并入代表设施；
+  // 接驳口 / 跑道 / 有停用年 / 铁路与机场枢纽不参与合并；外围补充见下方 push。
+  (function (data) {
+    var fs = data.facilities, drop = {'sg_hot_3':1};
+    for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
+    var upd = {
+      'sg-raffles': { w: 0.053, note: "客流规模为游戏估算。；市中心热点合并：含 鱼尾狮公园（需求并入本设施，位置以本设施为准）" },
+    };
+    for (var j = 0; j < fs.length; j++) { var u = upd[fs[j].id]; if (u) for (var k in u) fs[j][k] = u[k]; }
+    data.facilities.push(
+      { id: 'sg_outer_1', n: '新加坡科学中心', t: 'scenic', at: [63.3, 69.7], y0: 1977, w: 0.012, note: '1977 年开放，裕廊东' },
+      { id: 'sg_outer_2', n: '南洋理工大学', t: 'uni', at: [75.7, 63], w: 0.02, note: '1991 年成立的云南园校区' },
+      { id: 'sg_outer_3', n: '武吉知马自然保护区', t: 'park', at: [84.9, 71], w: 0.012, note: '1883 年设立的原始雨林保护区' },
+      { id: 'sg_outer_4', n: '榜鹅水道公园', t: 'park', at: [134.5, 37.6], y0: 2011, w: 0.012, note: '2011 年开放的榜鹅滨水步道' },
+      { id: 'sg_outer_5', n: '巴西立公园', t: 'park', at: [155.4, 52.8], w: 0.01, note: '东北海岸红树林与海滨公园' },
+      { id: 'sg_outer_6', n: '乌敏岛', t: 'scenic', at: [164.5, 38.6], w: 0.008, note: '东北海面的花岗岩采石岛' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'sg'; }).data);
 })(window.CM);

@@ -129,4 +129,41 @@
         events:[{id:'trade2018',y:2018,m:7},{id:'covid2020',y:2020,m:1}]},
     },
   });
+
+  // 补充热点地区（2026-11-12）：知名但此前未列入「重要设施」的地点。
+  // 坐标取自 OSM 底图同名点，缺失时按经纬度投影；规模按同城同类设施的中低档取值。
+  // 追加在数组末尾，不打乱既有设施顺序；引擎按 id 生成缓存键，旧存档不受影响。
+  (function (data) {
+    data.facilities.push(
+      { id: 'su_hot_1', n: '虎丘', t: 'scenic', at: [98, 143.9], w: 0.028, note: '苏州地标云岩寺塔所在' },
+      { id: 'su_hot_2', n: '留园', t: 'scenic', at: [101.8, 151.5], w: 0.02, note: '中国四大名园之一' },
+      { id: 'su_hot_3', n: '平江路', t: 'shop', at: [117.7, 153.2], w: 0.03, note: '古城保存最完整的历史街区' },
+      { id: 'su_hot_4', n: '山塘街', t: 'shop', at: [105.6, 150.2], w: 0.026, note: '唐代白居易主持修筑的七里山塘' },
+      { id: 'su_hot_5', n: '寒山寺', t: 'scenic', at: [90.4, 155.4], w: 0.016, note: '唐代古寺，枫桥夜泊典故' },
+      { id: 'su_hot_6', n: '苏州博物馆', t: 'scenic', at: [115.1, 149.2], y0: 2006, w: 0.018, note: '2006 年新馆开放' },
+      { id: 'su_hot_7', n: '周庄古镇', t: 'scenic', at: [201.4, 242], w: 0.014, note: '江南水乡古镇' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'su'; }).data);
+
+  // 热点地区调整（2026-11-12）：市中心合并 + 外围补充。
+  // 代表设施保留原 id；被合并设施从数组移除，需求按 w/pax 叠加。
+  // 市中心按传统老城中心半径 24 格聚类，3 格内相邻设施并入代表设施；
+  // 接驳口 / 跑道 / 有停用年 / 铁路与机场枢纽不参与合并；外围补充见下方 push。
+  (function (data) {
+    var fs = data.facilities, drop = {'su_hot_3':1,'su_hot_6':1};
+    for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
+    var upd = {
+      'su-old': { w: 0.079, note: "市中心热点合并：含 平江路（需求并入本设施，位置以本设施为准）" },
+      'su-garden': { w: 0.039, note: "市中心热点合并：含 苏州博物馆（需求并入本设施，位置以本设施为准）" },
+    };
+    for (var j = 0; j < fs.length; j++) { var u = upd[fs[j].id]; if (u) for (var k in u) fs[j][k] = u[k]; }
+    data.facilities.push(
+      { id: 'su_outer_1', n: '木渎古镇', t: 'scenic', at: [72.8, 177.7], w: 0.018, note: '吴中木渎，清代乾隆南巡驻跸地' },
+      { id: 'su_outer_2', n: '同里古镇', t: 'scenic', at: [149.4, 224.2], w: 0.016, note: '吴江同里，退思园所在地' },
+      { id: 'su_outer_3', n: '甪直古镇', t: 'scenic', at: [204.8, 173.6], w: 0.014, note: '吴中水乡古镇' },
+      { id: 'su_outer_4', n: '阳澄湖半岛', t: 'park', at: [171.6, 92.3], w: 0.014, note: '阳澄湖生态休闲旅游度假区' },
+      { id: 'su_outer_5', n: '穹窿山', t: 'park', at: [43.7, 180.2], w: 0.012, note: '苏州西南最高峰与孙武隐居地' },
+      { id: 'su_outer_6', n: '灵岩山', t: 'scenic', at: [68.2, 179.5], w: 0.01, note: '木渎西北，灵岩山寺所在' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'su'; }).data);
 })(window.CM);

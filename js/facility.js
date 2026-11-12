@@ -94,6 +94,8 @@
       const T = TYPES[s.t]; if (!T) return;
       const f = { k: out.length, id: s.id || ('f' + i), name: s.n, label: s.label || s.n, t: s.t, T: T, x: 0, y: 0, r: s.r != null ? s.r : T.r, lmK: -1,
         open: null, close: yrOf(s.y1), w: s.w != null ? curve(s.w) : null, pax: s.pax || null, p: s.p || T.p, we: s.we || null, note: s.note || '', src: s.src || null,
+        // 地图补充的热点沿用 _hot_ / _outer_ 编号，随所在片区开放与发展。
+        regionalHotspot: !T.hub && /_(?:hot|outer)_\d+$/.test(s.id || ''),
         ext: s.ext ? { dir: s.ext[0], km: s.ext[1], v: EXT_DIR[s.ext[0]] || [0, 0] } : null, rw: s.rw || null };   // rw：机场自己的跑道（格坐标，v2.2，用于模型选址）
       if (s.lm) {
         const k = lms.findIndex(function (l) { return l.id === s.lm; });
@@ -108,6 +110,10 @@
     });
     if (city) genDistrict(out, city);
     D._fac = out; D._facSrc = D.facilities; D._facCity = city || null;
+    // 按 id 建索引：Fac.byId 与渲染层的接驳口遍历不再每次线性扫描整张设施表。
+    // 索引与 _fac 同批重建，随地图/片区设施变化自动失效。
+    D._facById = new Map(out.map(function (f) { return [f.id, f]; }));
+    D._facExt = out.filter(function (f) { return f.ext; });
     return out;
   };
   // 片区设施（v2.1 第二轮：重要设施集中在老城与天河，外围片区发展起来后没有设施需求）：真实地图的每个片区
@@ -189,19 +195,39 @@
     }
     return c.pop[k] || 0;
   };
-  Fac.byId = function (id) { const L = Fac.list(); for (const f of L) if (f.id === id) return f; return null; };
+  Fac.byId = function (id) {
+    const L = Fac.list();
+    if (D._fac === L && D._facById) return D._facById.get(id) || null;
+    for (const f of L) if (f.id === id) return f;
+    return null;
+  };
   // 是否在运营：启用年份之后、停用年份之前；引用地标的须地标已落成（填海等场地成陆后），其余须所在格为陆地
   Fac.active = function (f, yr, city) {
     if (yr < f.open || (f.close != null && yr >= f.close)) return false;
+    const c = city.cellAt(f.x, f.y);
+    if (f.regionalHotspot && (c < 0 || !city.regionOpen[city.lockRegion(c)])) return false;
     if (f.lmK >= 0) return !!(city.landmarkOn && city.landmarkOn[f.lmK]);
     if (f.gen && (!city.regionOpen[f.gen.k] || Fac.regionPop(city, f.gen.k) < f.gen.min)) return false;
-    const c = city.cellAt(f.x, f.y);
     return c >= 0 && city.landFrac[c] >= 0.3;
   };
   // 枢纽：接驳出行（汽车 + 地铁，到达与离开合计，人次/日，工作日）；其他：占全市该目的出行吸引的比例（周期规模，估算）
   Fac.pax = function (f, yr) { return f.pax ? U.interp(f.pax, yr) * 1e4 : 0; };
   // 吸引比例按 trips.facBoost 放大（v2.1 第二轮：设施出行需求整体偏少）；sim.js 中各目的的设施合计另有上限
-  Fac.share = function (f, yr) { return f.w ? U.interp(f.w, yr) * (CM.CFG.trips.facBoost || 1) : 0; };
+  Fac.share = function (f, yr, city) {
+    if (!f.w) return 0;
+    let scale = 1;
+    if (f.regionalHotspot && city) {
+      const c = city.cellAt(f.x, f.y);
+      if (c < 0) return 0;
+      const k = city.lockRegion(c), rg = city.regions[k];
+      if (!city.regionOpen[k] || yr < f.open) return 0;
+      const date = city.regionOpenDate[k], start = CM.CFG.START.y;
+      const opened = rg.open > start && date ? date[0] + (date[1] - 1) / 12 : start;
+      const onset = Math.max(opened, f.open);
+      if (onset > start) scale = 0.25 + 0.75 * U.clamp((yr - onset) / 8, 0, 1);
+    }
+    return U.interp(f.w, yr) * (CM.CFG.trips.facBoost || 1) * scale;
+  };
   // 场地格：地标场地或以设施为中心、半径 r 的格（只取陆地）
   Fac.siteCells = function (f, city) {
     const out = [];
@@ -219,10 +245,10 @@
     return out;
   };
   // 规模说明（参考规模，估算）
-  Fac.sizeText = function (f, yr) {
+  Fac.sizeText = function (f, yr, city) {
     if (f.T.hub) return '约 ' + U.fmtNum(Fac.pax(f, yr) / 1e4, 1) + ' 万人次/日的市内接驳出行（工作日，估算）';
     const keys = Object.keys(f.p), nm = CM.CFG.trips.name;
-    return '约占全市' + keys.map(function (k) { return nm[k]; }).join('、') + '出行吸引的 ' + U.fmtPct(Fac.share(f, yr), 1) + '（估算）';
+    return '约占全市' + keys.map(function (k) { return nm[k]; }).join('、') + '出行吸引的 ' + U.fmtPct(Fac.share(f, yr, city), 1) + '（估算）';
   };
   Fac.purposeText = function (f) { const nm = CM.CFG.trips.name; return Object.keys(f.p).map(function (k) { return nm[k]; }).join('、'); };
   // 数据来源标签：[标签, 样式]

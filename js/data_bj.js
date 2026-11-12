@@ -22,6 +22,115 @@
   const gugong = poly([[39.9227, 116.3843], [39.9227, 116.3971], [39.9112, 116.3971], [39.9112, 116.3843]]);   // v2.6.1：原值为 GCJ-02，换算到与底图一致的 WGS-84
 
   const data = {
+    // 城市特色（v2.7 社区补录）：逐条校验后移入，不删改社区版原有字段；
+    // 依赖口岸连接/硬编码格坐标的条目已跳过，避免社区版外扩地图错位。
+    traits: [
+      {
+        "use": "finance",
+        "flavor": "cn"
+      },
+      {
+        "use": "conserve",
+        "level": "light",
+        "star": true,
+        "icon": "building",
+        "label": "旧城保护",
+        "text": "旧城只能走地下，隧道、车站和拆迁都更贵；天安门、钟鼓楼、雍和宫周围另有保护范围",
+        "regions": [
+          "jiucheng",
+          "gugong",
+          "tiantan"
+        ],
+        "guards": [
+          "bj_tam",
+          "bj_gulou",
+          "bj_yonghe"
+        ],
+        "why": "北京旧城是历史文化名城保护的核心，内有故宫、中轴线和大片胡同，长期限制高度和大拆大建。"
+      },
+      {
+        "use": "megaEvent",
+        "level": "mid",
+        "star": true,
+        "icon": "flag",
+        "label": "2008 奥运会",
+        "text": "申奥成功后拨款增加，奥林匹克公园一带可以提前布局",
+        "bid": {
+          "y": 2001,
+          "m": 7
+        },
+        "open": [
+          2008,
+          8
+        ],
+        "foresight": {
+          "id": "bj-oly",
+          "level": "mid",
+          "at": "bj_nest",
+          "ym": [
+            2001,
+            7
+          ],
+          "before": 1999,
+          "r": 7,
+          "region": "aoyun",
+          "title": "奥运主场馆定在北中轴",
+          "hit": "奥运主场馆定在北中轴，早已通车的{st}站让这一带抢先有了依托。",
+          "miss": "奥运主场馆定在北中轴，这里还没有地铁，七年内要补上。"
+        },
+        "why": "2001 年 7 月北京申奥成功，奥运前地铁进入大规模建设期。"
+      },
+      {
+        "use": "relocate",
+        "star": true,
+        "icon": "road",
+        "label": "疏解与城市副中心",
+        "text": "老城人口和岗位逐步外迁；提前修到通州的线路，等来城市副中心",
+        "why": "北京 2015 年起规划建设城市副中心，疏解非首都功能。"
+      },
+      {
+        "use": "transition",
+        "level": "mid",
+        "label": "首钢搬迁",
+        "region": "shijingshan",
+        "close": {
+          "y": 2010,
+          "m": 12,
+          "title": "首钢石景山主流程停产",
+          "desc": "12 月，首钢石景山厂区的钢铁主流程全面停产，结束了在北京 91 年的钢铁生产，老厂区开始再开发。"
+        },
+        "replan": [
+          {
+            "year": 2011,
+            "region": "shijingshan",
+            "plan": "mix"
+          }
+        ],
+        "why": "首钢石景山厂区 2010 年 12 月全面停产，8.56 平方公里的老厂区重新开发。"
+      },
+      {
+        "use": "carLimit",
+        "level": "mid",
+        "label": "小客车摇号",
+        "on": {
+          "y": 2011,
+          "m": 1,
+          "title": "小客车指标摇号",
+          "desc": "1 月 1 日起，北京新增小客车要摇号取得指标，当年指标 24 万个。"
+        },
+        "why": "北京自 2011 年 1 月 1 日起实行小客车指标摇号。"
+      },
+      {
+        "use": "scenic",
+        "label": "故宫与皇家园林",
+        "why": "故宫、天坛、颐和园和圆明园都不能开发。"
+      },
+      {
+        "use": "portal",
+        "label": "大兴机场",
+        "why": "大兴国际机场 2019 年 9 月通航，在地图南缘以南约 35 km。"
+      }
+    ],
     city: '北京', terrainRevision: 1, riverName: '永定河', hsrYear: 2008,
     stages: [[1999, '亚运时代'], [2004, '扩张与申奥'], [2009, '奥运建设期'], [2017, '网络化时期']], stageLast: '疏解与副中心时期',
     eras: [
@@ -359,4 +468,36 @@
     },
     cam: { cx: 82, cy: 78, zoom: 16 },
   });
+
+  // 补充热点地区（2026-11-12）：知名但此前未列入「重要设施」的地点。
+  // 坐标取自 OSM 底图同名点，缺失时按经纬度投影；规模按同城同类设施的中低档取值。
+  // 追加在数组末尾，不打乱既有设施顺序；引擎按 id 生成缓存键，旧存档不受影响。
+  (function (data) {
+    data.facilities.push(
+      { id: 'bj_hot_1', n: '天安门广场', t: 'scenic', at: [80.2, 86], w: 0.028, note: '北京中轴线核心广场' },
+      { id: 'bj_hot_2', n: '中国国家博物馆', t: 'scenic', at: [82.3, 87], y0: 2003, w: 0.02, note: '2003 年更名组建，2011 年新馆开放' },
+      { id: 'bj_hot_3', n: '798 艺术区', t: 'scenic', at: [114.4, 51.5], y0: 2002, w: 0.014, note: '2002 年起形成的大山子艺术区' },
+      { id: 'bj_hot_4', n: '北京动物园', t: 'scenic', at: [59.4, 71.5], w: 0.016, note: '1906 年开放的西郊动物园' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'bj'; }).data);
+
+  // 热点地区调整（2026-11-12）：市中心合并 + 外围补充。
+  // 代表设施保留原 id；被合并设施从数组移除，需求按 w/pax 叠加。
+  // 市中心按传统老城中心半径 17 格聚类，3 格内相邻设施并入代表设施；
+  // 接驳口 / 跑道 / 有停用年 / 铁路与机场枢纽不参与合并；外围补充见下方 push。
+  (function (data) {
+    var fs = data.facilities, drop = {'bj_hot_2':1,'bj_xiehe':1,'bj_cbd':1,'bj_tt':1};
+    for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
+    var upd = {
+      'bj_wfj': { w: 0.12, note: "市中心热点合并：含 中国国家博物馆、北京协和医院（需求并入本设施，位置以本设施为准）" },
+      'bj_gmall': { w: 0.025, note: "市中心热点合并：含 CBD（国贸）（需求并入本设施，位置以本设施为准）" },
+      'bj_tiantan': { w: 0.05, note: "市中心热点合并：含 北京天坛医院（需求并入本设施，位置以本设施为准）" },
+    };
+    for (var j = 0; j < fs.length; j++) { var u = upd[fs[j].id]; if (u) for (var k in u) fs[j][k] = u[k]; }
+    data.facilities.push(
+      { id: 'bj_outer_1', n: '卢沟桥', t: 'scenic', at: [22.9, 112.2], w: 0.014, note: '宛平城与七七事变旧址' },
+      { id: 'bj_outer_2', n: '北京园博园', t: 'park', at: [12.2, 106.6], y0: 2013, w: 0.012, note: '2013 年园博会园区，丰台永定河西' },
+      { id: 'bj_outer_3', n: '八大处公园', t: 'park', at: [3.4, 62.2], w: 0.01, note: '西山八大处佛教寺庙群' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'bj'; }).data);
 })(window.CM);

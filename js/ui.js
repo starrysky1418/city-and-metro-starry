@@ -560,7 +560,7 @@
     g.on('toast', function (t) {
       const go = function (tab) { return function () { self.taskTab = tab; self.openPage('tasks', tab, { root: true }); }; };
       if (t.ppp && t.kind === 'good') snd('contract');
-      self.toast(t.text, t.kind, t.offer ? { label: '查看挑战', fn: go('active') } : (t.ppp ? { label: '查看合同', fn: go('ppp') } : (t.fleet ? { label: '列车运营', fn: function () { self.openObj('line', t.fleet, 'ops'); } } : (t.models ? { label: '查看车型', fn: function () { self.openPage('fleet', null, { root: true }); } } : (t.fare ? { label: '调整票价', fn: function () { self.openPage('finance', 'ov', { root: true }); } } : undefined)))));
+      self.toast(t.text, t.kind, t.offer ? { label: '查看挑战', fn: go('active') } : (t.ppp ? { label: '查看合同', fn: go('ppp') } : (t.fleet ? { label: '列车运营', fn: function () { self.openObj('line', t.fleet, 'ops'); } } : (t.models ? { label: '查看车型', fn: function () { self.openPage('fleet', null, { root: true }); } } : (t.fare ? { label: '调整票价', fn: function () { self.openOpsApp('fare'); } } : undefined)))));
     });
     // 车队变化（v2.5）：正在看的线路页与车队页随之刷新
     g.on('fleet', function () { const top = self.stack[self.stack.length - 1]; if (top && (top.kind === 'line' || top.kind === 'fleet')) self.rerenderPage(); else if (self.opsApp) self.opsApp.refresh(); });
@@ -1724,6 +1724,7 @@
     else this.openPage('metric', key, { toggle: true, root: true });
   };
   UI.prototype.openPage = function (kind, id, opts) {
+    if (kind === 'finance' && id === 'fare') { this.openOpsApp('fare'); return; }
     opts = opts || {};
     // 居民满意度详情（v2.3）融入「地铁圈」App 的满意度视图，不再从右侧面板打开
     if (kind === 'metric' && id === 'sat' && this.openVoicesApp) { this.openVoicesApp('sat'); return; }
@@ -3077,4 +3078,73 @@
     o.menu.querySelector('button').focus();
   };
 
+  UI.dropdown = function (o) {
+    const items = (o.items || []).map(function (it) { return [String(it[0]), it[1], it[2] || null]; });
+    let val = o.value != null ? String(o.value) : (items[0] ? items[0][0] : ''), pop = null;
+    const sw = function (L) { return L ? h('span', { class: 'dd-sw', style: { background: AX.line(L) } }) : null; };
+    const txt = h('span', { class: 'dd-t' });
+    const btn = h('button', { type: 'button', class: 'dd' + (o.cls ? ' ' + o.cls : ''), 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-label': o.label || null, 'data-silent': '1' }, txt, h('i', { class: 'dd-c' }, ic('chev', 13)));
+    const sync = function () {
+      const it = items.find(function (x) { return x[0] === val; });
+      txt.replaceChildren.apply(txt, [sw(it && it[2]), h('span', null, it ? it[1] : '')].filter(Boolean));
+      if (CM.I18n) CM.I18n.localize(btn);
+    };
+    // 只在菜单内部滚动（scrollIntoView 会连带滚动后面的面板，触发「滚动即收起」）
+    const reveal = function (el) { if (!pop || !el) return; el.focus({ preventScroll: true }); if (el.offsetTop < pop.scrollTop) pop.scrollTop = el.offsetTop - 4; else if (el.offsetTop + el.offsetHeight > pop.scrollTop + pop.clientHeight) pop.scrollTop = el.offsetTop + el.offsetHeight - pop.clientHeight + 4; };
+    const onKey = function (e) {
+      if (!pop) return;
+      const opts = Array.from(pop.querySelectorAll('.dd-o')), i = opts.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); const n = opts.length; if (n) reveal(opts[i < 0 ? 0 : (i + (e.key === 'ArrowDown' ? 1 : n - 1)) % n]); }
+      else if ((e.key === 'Enter' || e.key === ' ') && i >= 0) { e.preventDefault(); e.stopPropagation(); opts[i].click(); }
+      else if (e.key === 'Tab') close(true);
+    };
+    const outside = function (e) { if (pop && !pop.contains(e.target) && !btn.contains(e.target)) close(false); };
+    const away = function (e) { if (e && e.type === 'scroll' && pop && pop.contains(e.target)) return; close(false); };
+    let watch = 0;   // 所在界面重画、按钮被移走时一并收起
+    function close(focus) {
+      if (!pop) return;
+      clearInterval(watch);
+      pop.remove(); pop = null;
+      btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false');
+      window.removeEventListener('pointerdown', outside, true); window.removeEventListener('resize', away); document.removeEventListener('scroll', away, true); document.removeEventListener('keydown', onKey, true);
+      if (focus) btn.focus({ preventScroll: true });
+    }
+    const pick = function (v) {
+      const changed = v !== val; val = v; sync(); close(true);
+      if (changed) { snd('soft'); btn.dispatchEvent(new Event('change')); if (o.onChange) o.onChange(v); }
+    };
+    const open = function () {
+      if (pop) { close(true); return; }
+      if (btn.disabled || !items.length) return;
+      pop = h('div', { class: 'dd-pop', role: 'listbox', 'aria-label': o.label || null }, items.map(function (it) {
+        const on = it[0] === val;
+        return h('button', { type: 'button', class: 'dd-o' + (on ? ' on' : ''), role: 'option', 'aria-selected': on ? 'true' : 'false', 'data-silent': '1', onclick: function () { pick(it[0]); } }, sw(it[2]), h('span', { class: 'grow' }, it[1]), on ? ic('check', 14) : null);
+      }));
+      document.body.appendChild(pop);
+      if (CM.I18n) CM.I18n.localize(pop);
+      // 放在按钮下方，下方放不下且上方更宽时放到上方；不超出窗口。菜单随界面缩放（zoom），位置和尺寸按缩放换算
+      const z = (CM.Settings && CM.Settings.scale()) || 1, r = btn.getBoundingClientRect();
+      const v = CM.ui ? CM.ui.viewport() : { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+      pop.style.maxWidth = Math.max(0, (v.right - v.left - 16) / z) + 'px';
+      pop.style.minWidth = (Math.min(r.width, v.right - v.left - 16) / z) + 'px';
+      const want = Math.min(pop.scrollHeight * z, 320 * z), below = v.bottom - r.bottom - 10, above = r.top - v.top - 10, up = below < want && above > below;
+      const ht = Math.max(0, Math.min(want, up ? above : below));
+      pop.style.maxHeight = (ht / z) + 'px';
+      pop.style.left = (U.clamp(r.left, v.left + 8, Math.max(v.left + 8, v.right - pop.offsetWidth * z - 8)) / z) + 'px';
+      pop.style.top = ((up ? r.top - ht - 4 : r.bottom + 4) / z) + 'px';
+      if (up) pop.classList.add('up');
+      btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+      window.addEventListener('pointerdown', outside, true); window.addEventListener('resize', away); document.addEventListener('scroll', away, true); document.addEventListener('keydown', onKey, true);
+      watch = setInterval(function () { if (!btn.isConnected) close(false); }, 250);
+      reveal(pop.querySelector('.dd-o.on') || pop.querySelector('.dd-o'));
+      snd('soft');
+    };
+    btn.addEventListener('click', open);
+    btn.addEventListener('keydown', function (e) { if (!pop && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); open(); } });
+    Object.defineProperty(btn, 'value', { get: function () { return val; }, set: function (v) { val = String(v); sync(); } });
+    btn.ddClose = close;
+    sync();
+    return btn;
+  };
 })(window.CM);

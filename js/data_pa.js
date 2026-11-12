@@ -45,6 +45,164 @@
   const defense = poly([[48.8962, 2.2285], [48.8962, 2.2470], [48.8908, 2.2535], [48.8866, 2.2505], [48.8866, 2.2290]]);
 
   const data = {
+    // 城市特色（v2.7 社区补录）：逐条校验后移入，不删改社区版原有字段；
+    // 依赖口岸连接/硬编码格坐标的条目已跳过，避免社区版外扩地图错位。
+    traits: [
+      {
+        "use": "finance",
+        "flavor": "fr"
+      },
+      {
+        "use": "conserve",
+        "level": "mid",
+        "star": true,
+        "icon": "building",
+        "label": "历史城区",
+        "text": "中心区只能走地下，圣母院、卢浮宫等古建周围另有保护范围，造价和拆迁都更贵",
+        "regions": [
+          "centre"
+        ],
+        "guards": [
+          "pa_notredame",
+          "pa_louvre",
+          "pa_invalides",
+          "pa_arc",
+          "pa_sacrecoeur",
+          "pa_pantheon"
+        ],
+        "why": "巴黎地铁从一开始就以地下为主，高架只出现在外围的 2 号线和 6 号线部分路段；中心区古建密集。"
+      },
+      {
+        "use": "war",
+        "star": true,
+        "icon": "flag",
+        "label": "两次世界大战",
+        "text": "大战期间拨款锐减、造价上涨；1940 年大逃亡让城区几乎一空",
+        "events": [
+          {
+            "y": 1914,
+            "m": 8,
+            "level": "mid",
+            "years": 4.25,
+            "tableGrant": true
+          },
+          {
+            "y": 1940,
+            "m": 6,
+            "level": "mid",
+            "years": 4.25,
+            "tableGrant": true,
+            "regions": [
+              "centre",
+              "grandsbd",
+              "rivegauche",
+              "faubourgs",
+              "sud",
+              "ouest",
+              "nord"
+            ]
+          }
+        ],
+        "why": "1940 年 6 月德军入城前，约四分之三的巴黎人已经离开；两次大战期间地铁建设都明显放缓。"
+      },
+      {
+        "use": "rival",
+        "star": true,
+        "icon": "road",
+        "label": "步行、电车与郊区铁路",
+        "text": "地铁一直要和电车、郊区铁路和步行抢乘客，比重随年代变化",
+        "why": "1900 年的巴黎步行和电车比重很高，电车运营到 1937 年，郊区铁路至今承担大量通勤。"
+      },
+      {
+        "use": "foresight",
+        "level": "mid",
+        "label": "拉德芳斯提前布局",
+        "id": "pa-defense",
+        "at": "pa_cnit",
+        "ym": [
+          1958,
+          9
+        ],
+        "before": 1950,
+        "r": 7,
+        "region": "defense",
+        "title": "拉德芳斯开发启动",
+        "hit": "政府决定在城西开发新的商务区，早已通车的{st}站让拉德芳斯一开始就和市中心连在一起。",
+        "miss": "政府决定在城西开发新的商务区，这里还没有地铁，要尽快把线路延伸过来。",
+        "why": "1958 年成立拉德芳斯开发机构，同年 CNIT 展览馆落成。"
+      },
+      {
+        "use": "transition",
+        "level": "mid",
+        "label": "圣但尼平原转型",
+        "region": "nordind",
+        "close": {
+          "y": 1975,
+          "m": 1,
+          "title": "北郊工厂开始外迁",
+          "desc": "1970 年代起，圣但尼平原一带的工厂陆续关闭外迁，工业岗位大量流失。"
+        },
+        "renew": {
+          "y": 1993,
+          "m": 10,
+          "title": "法兰西体育场选址圣但尼平原",
+          "desc": "1998 年世界杯的主体育场选址圣但尼平原，这片老工业区开始再开发。"
+        },
+        "replan": [
+          {
+            "year": 1994,
+            "region": "nordind",
+            "plan": "mix"
+          }
+        ],
+        "why": "圣但尼平原 19 世纪起就是工业区，1985 年开始筹划更新，1993 年世界杯体育场选址于此。"
+      },
+      {
+        "use": "investWindow",
+        "existing": true,
+        "span": [
+          1965,
+          1977
+        ],
+        "label": "大区快铁时期",
+        "why": "1965 年的巴黎地区规划提出大区快铁，RER A 线 1969 年起分段开通，1977 年贯通市中心。"
+      },
+      {
+        "use": "investWindow",
+        "existing": true,
+        "span": [
+          2010,
+          2020
+        ],
+        "label": "“大巴黎”",
+        "why": "2010 年通过“大巴黎”法案，规划环绕近郊的新地铁线。"
+      },
+      {
+        "use": "megaEvent",
+        "existing": true,
+        "label": "世博会、奥运会与世界杯",
+        "why": "巴黎举办过 1900 年与 1937 年世博会、1924 年奥运会和 1998 年世界杯决赛。"
+      },
+      {
+        "use": "crossing",
+        "label": "塞纳河",
+        "why": "塞纳河横贯城市，过河段可以建隧道或桥梁。"
+      },
+      {
+        "use": "scenic",
+        "label": "布洛涅与万塞讷森林",
+        "why": "城市东西两侧的森林不能开发。"
+      },
+      {
+        "use": "currency",
+        "label": "新法郎与欧元",
+        "why": "1960 年改用新法郎，2002 年欧元现钞流通。"
+      },
+      {
+        "use": "heightCap",
+        "why": "巴黎市内长期限高，1977 年起再度收紧。"
+      }
+    ],
     city: '巴黎', riverName: '塞纳河', hsrYear: 1989,
     stages: [[1914, '美好年代'], [1919, '第一次世界大战'], [1939, '两次大战之间'], [1946, '第二次世界大战与解放'], [1975, '辉煌三十年'], [2000, '危机与转型']], stageLast: '大巴黎时代',
     // 历史发展阶段（v2.2，eras.js）：summary 中「史实」可查证，「估算」为模型设定的发展倾向；grow 只改变人口与岗位增长的去向（总量仍按人口曲线），
@@ -494,4 +652,41 @@
     },
     cam: { cx: 63, cy: 77, zoom: 18 },
   });
+
+  // 补充热点地区（2026-11-12）：知名但此前未列入「重要设施」的地点。
+  // 坐标取自 OSM 底图同名点，缺失时按经纬度投影；规模按同城同类设施的中低档取值。
+  // 追加在数组末尾，不打乱既有设施顺序；引擎按 id 生成缓存键，旧存档不受影响。
+  (function (data) {
+    data.facilities.push(
+      { id: 'pa_hot_1', n: '圣礼拜堂', t: 'scenic', at: [62.5, 80.2], w: 0.014, note: '13 世纪哥特式皇家礼拜堂，西岱岛' },
+      { id: 'pa_hot_2', n: '圣日耳曼德佩教堂', t: 'scenic', at: [59.3, 81.1], w: 0.012, note: '巴黎现存最古老的教堂之一' },
+      { id: 'pa_hot_3', n: '蒙梭公园', t: 'park', at: [51.9, 69.6], w: 0.01, note: '17 区英式园林' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'pa'; }).data);
+
+  // 热点地区调整（2026-11-12）：市中心合并 + 外围补充。
+  // 代表设施保留原 id；被合并设施从数组移除，需求按 w/pax 叠加。
+  // 市中心按传统老城中心半径 16 格聚类，3 格内相邻设施并入代表设施；
+  // 接驳口 / 跑道 / 有停用年 / 铁路与机场枢纽不参与合并；外围补充见下方 push。
+  (function (data) {
+    var fs = data.facilities, drop = {'pa_garnier':1,'pa_opera':1,'pa_plantes':1,'pa_louvre':1,'pa_hot_1':1,'pa_halles':1,'pa_sorbonne':1,'pa_hoteldieu':1,'pa_hot_3':1,'pa_champs':1,'pa_mp':1,'pa_bercy':1,'pa_tuileries':1,'pa_pantheon':1};
+    for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
+    var upd = {
+      'pa_grandsmag': { w: 0.089, note: "市中心热点合并：含 加尼叶歌剧院、歌剧院—证券交易所商务区（需求并入本设施，位置以本设施为准）" },
+      'pa_salpe': { w: 0.068, note: "市中心热点合并：含 巴黎植物园（需求并入本设施，位置以本设施为准）" },
+      'pa_rivoli': { w: 0.031, note: "市中心热点合并：含 卢浮宫博物馆、圣礼拜堂、巴黎大堂（需求并入本设施，位置以本设施为准）" },
+      'pa_notredame': { w: 0.06, note: "市中心热点合并：含 索邦（巴黎大学）、主宫医院（需求并入本设施，位置以本设施为准）" },
+      'pa_8e': { w: 0.008, note: "市中心热点合并：含 蒙梭公园、香榭丽舍大街（需求并入本设施，位置以本设施为准）" },
+      'pa_necker': { w: 0.036, note: "市中心热点合并：含 蒙帕纳斯商务区（需求并入本设施，位置以本设施为准）" },
+      'pa_prg': { w: 0.006, note: "市中心热点合并：含 贝西体育馆（需求并入本设施，位置以本设施为准）" },
+      'pa_orsaym': { w: 0.025, note: "市中心热点合并：含 杜乐丽花园（需求并入本设施，位置以本设施为准）" },
+      'pa_jussieu': { w: 0.025, note: "市中心热点合并：含 先贤祠（需求并入本设施，位置以本设施为准）" },
+    };
+    for (var j = 0; j < fs.length; j++) { var u = upd[fs[j].id]; if (u) for (var k in u) fs[j][k] = u[k]; }
+    data.facilities.push(
+      { id: 'pa_outer_1', n: '圣但尼圣殿', t: 'scenic', at: [66.7, 44.1], w: 0.012, note: '法国王室墓葬教堂' },
+      { id: 'pa_outer_2', n: '文森城堡', t: 'scenic', at: [90, 84.8], w: 0.01, note: '14 世纪王室城堡，文森森林东缘' },
+      { id: 'pa_outer_3', n: '索镇公园', t: 'park', at: [52.3, 117.6], w: 0.01, note: '巴黎南郊古典园林' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'pa'; }).data);
 })(window.CM);

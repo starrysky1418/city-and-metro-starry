@@ -59,8 +59,9 @@ npx wrangler pages deploy dist --project-name city-and-metro-starry --branch mai
 在源码目录执行：
 
 ```bash
-node scripts/verify-game.mjs            # 源码：版本 2.5.1 / 15 张地图 / 107 个文件
+node scripts/verify-game.mjs            # 源码：版本 2.7.0 / 19 张地图 / 119 个文件
 node scripts/verify-game.mjs --dist     # 发布目录与源码一致
+node scripts/map-pipeline.mjs tj       # 推荐：轻量检查 → 许可 → 指纹 → 清单 → 零删除同步 dist → 双端校验
 node scripts/build.mjs                  # 可选：重建 dist（保留 .git / site / .github）
 ```
 
@@ -68,7 +69,14 @@ node scripts/build.mjs                  # 可选：重建 dist（保留 .git / s
 `.nojekyll`、`game-manifest.json`；`.git`、`site/`、`.github/` 与部署说明不会被删除。
 
 部署后建议抽查：首页、`/site/changelog.html`、`js/data_ny.js`、`js/geo_ny.js`、
-`site/assets/promo.mp4`，以及一个不存在的路径应返回 404。
+`js/data_tj.js`、`js/geo_tj.js`、`site/assets/promo.mp4`，以及一个不存在的路径应返回 404。
+
+## 2026-11-12 · Starry 版 1.2 更新状态
+
+游戏内引擎版本已对齐原版 **2.7.0**（社区发行版版本独立为 1.2，存档结构未变），
+当前发布成品为 **19 张地图 / 119 个文件**：新增天津（2004）、成都、重庆与伦敦，
+整合新版线路图回放、城市总评与城市特色机制库，并完成全图史实／票价／热点复核与绘制性能优化。
+详细内容见 `CHANGELOG.md` 与 `/site/changelog.html`。访问地址与部署方式不变。
 
 ## 变更同步约定
 

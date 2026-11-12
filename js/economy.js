@@ -1495,5 +1495,27 @@
   };
 
   Tasks.prototype.serialize = function () { return { active: this.active, done: this.done, failed: this.failed, issued: this.issued, nextDyn: this.nextDyn, seq: this.seq, cool: this.cool || {}, adjusted:this.adjusted||[], offers: this.offers || [], nextOffer: this.nextOffer || 0, lineHist: this.lineHist || {} }; };
-  Tasks.restore = function (s) { const t = new Tasks(); Object.assign(t, s); return t; };
+  Tasks.restore = function (s) {
+    const tasks = Object.assign(new Tasks(), s);
+    if (CM.mapId !== 'sh' && CM.mapId !== 'gz') return tasks;
+    // 扩图版曾漏移阶段目标坐标。用修正后的剧本位置恢复已生成的任务点，避免再次平移。
+    const goals = new Map();
+    for (const era of D.eras || []) {
+      for (const goal of era.goals || []) if (goal.anchors) goals.set(goal.id, goal.anchors);
+    }
+    const align = function (task, positions) {
+      for (const anchor of task.anchors || []) {
+        const pos = positions.find(p => p.name === anchor.name);
+        if (pos) { anchor.x = pos.x; anchor.y = pos.y; }
+      }
+      for (const part of task.parts || []) align(part, positions);
+    };
+    for (const list of [tasks.active, tasks.done, tasks.failed, tasks.adjusted, tasks.offers]) {
+      for (const task of list || []) {
+        const positions = goals.get(task.cityId);
+        if (positions) align(task, positions);
+      }
+    }
+    return tasks;
+  };
 })(window.CM);

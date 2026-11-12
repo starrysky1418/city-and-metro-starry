@@ -175,15 +175,22 @@ window.CM = window.CM || {};
     }
     return p;
   };
+  // 按表缓存上次命中的区间：年份/月份通常单调递增，避免每次从头线性扫描。
+  // 结果与原实现完全一致（仍取第一个 x <= tbl[i][0] 的区间），只省比较次数。
+  const interpCache = new WeakMap();
   U.interp = function (tbl, x) {
+    const n = tbl.length;
     if (x <= tbl[0][0]) return tbl[0][1];
-    for (let i = 1; i < tbl.length; i++) {
-      if (x <= tbl[i][0]) {
-        const a = tbl[i - 1], b = tbl[i];
-        return a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]);
-      }
+    if (x > tbl[n - 1][0]) return tbl[n - 1][1];
+    const c = interpCache.get(tbl);
+    let k = c && c.k < n && tbl[c.k - 1][0] <= x && x <= tbl[c.k][0] ? c.k : 0;
+    if (!k) {
+      for (let i = 1; i < n; i++) if (x <= tbl[i][0]) { k = i; break; }
+      if (!k) return tbl[n - 1][1];
+      interpCache.set(tbl, { k: k });
     }
-    return tbl[tbl.length - 1][1];
+    const a = tbl[k - 1], b = tbl[k];
+    return a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]);
   };
 
   // ---------- 颜色 ----------
@@ -358,4 +365,11 @@ window.CM = window.CM || {};
   U.Emitter = Emitter;
 
   CM.U = U;
+  U.downloadBlob = function (blob, filename) {
+    if (!blob || !blob.size) throw new Error('无法生成文件');
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    try { a.click(); } finally { setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500); }
+  };
 })(window.CM);

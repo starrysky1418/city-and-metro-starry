@@ -124,9 +124,6 @@
         { id:'sz-huangtian', n:'深圳黄田国际机场', t:'air', at:old, rw:east, y0:1991, y1:rename, pax:[[2000,2],[2013,4]] },
         { id:'sz-air-ab', n:'宝安机场 A/B 航站楼', t:'air', at:old, rw:east, y0:rename, y1:[2013,11], pax:[[2000,2],[2013,4]] },
       );
-      const [anchor] = data.histTasks.find(t => t.id === 'sz-air').anchors;
-      [anchor.x, anchor.y] = terminal;
-      anchor.name = '宝安机场 T3';
       data.landmarks.push(
         { id:'sz-terminal-3', name:'宝安机场 T3 航站楼', kind:'airport', x:terminal[0], y:terminal[1], year:t3, rot:-65, w:650, d:330, T:520, h:26 },
         { id:'sz-air-satellite', name:'宝安机场卫星厅', kind:'airport', x:29.3, y:106.8, year:2021+11/12, rot:-65, w:420, d:240, T:340, h:19 },

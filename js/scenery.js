@@ -240,14 +240,15 @@
         if (Math.abs(u) <= hw && v >= -h.lm.d / 2 / CMM - 0.3 && v <= hd) noTree.add(j * city.W + i);
       }
     }
-    this._facm = { key: key, city: city, list: list, hubs: hubs, byId: byId, cells: cells, airs: airs, airKey: airKey, noTree: noTree, runKey: runKey, ver: same && st ? st.ver : ((st && st.ver) || 0) + 1 };
+    this._facm = { key: key, city: city, list: list, hubs: hubs, all: list.concat(hubs), byId: byId, cells: cells, airs: airs, airKey: airKey, noTree: noTree, runKey: runKey, ver: same && st ? st.ver : ((st && st.ver) || 0) + 1 };
     return this._facm;
   };
 
   const R = Renderer.prototype;
   R.extraModels = function () {
+    // 等距视图每帧都要这份合并列表；随 _facm 一起缓存，避免每帧分配数组并拷贝全部模型。
     const f = this._facm || this.syncFacModels();
-    return f ? f.list.concat(f.hubs) : [];
+    return f ? (f.all || (f.all = f.list.concat(f.hubs))) : [];
   };
   const centre = R.isLmCenter;
   R.isLmCenter = function (c) { return centre.call(this, c) || !!(this._facm && this._facm.cells.has(c)); };

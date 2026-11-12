@@ -18,6 +18,16 @@ That database remains available under ODbL 1.0. The game's non-commercial
 license does not add restrictions to rights already granted under ODbL.
 The distributed geographic databases can be obtained from those files in the
 repository or the deployed game; retain attribution and applicable ODbL terms.
+The community Chengdu basemap (js/geo_cd.js) is derived from the Geofabrik
+Sichuan extract, clipped and encoded to the game extent, and is likewise
+available under ODbL 1.0.
+https://download.geofabrik.de/asia/china/sichuan.html
+The community Chongqing basemap (js/geo_cq.js) is derived from the Geofabrik
+Chongqing extract, clipped and encoded to the game extent, under ODbL 1.0.
+https://download.geofabrik.de/asia/china/chongqing.html
+The community Tianjin basemap (js/geo_tj.js) is derived from the Geofabrik
+Tianjin extract, clipped and encoded to the game extent, under ODbL 1.0.
+https://download.geofabrik.de/asia/china/tianjin.html
 
 本项目预处理的 OpenStreetMap 地理数据库继续按 ODbL 1.0 提供。
 社区版新增深圳与新加坡底图（js/geo_sz.js、js/geo_sg.js）：2026 年 11 月 OpenStreetMap 数据，分别取自 Geofabrik 广东提取包和 BBBike Singapore 提取包，按游戏范围裁切和编码。
@@ -26,6 +36,14 @@ repository or the deployed game; retain attribution and applicable ODbL terms.
 https://download.geofabrik.de/asia/china/jiangsu.html
 社区版纽约都会区底图（js/geo_ny.js）使用 BBBike NewYork 提取包中的 OpenStreetMap 数据，按游戏范围裁切和编码，依 ODbL 1.0 提供。
 https://download.bbbike.org/osm/bbbike/NewYork/
+社区版成都底图（js/geo_cd.js）使用 Geofabrik 四川提取包中的 OpenStreetMap 数据，按游戏范围裁切和编码，依 ODbL 1.0 提供。
+https://download.geofabrik.de/asia/china/sichuan.html
+伦敦底图（js/geo_ld.js）、1860 剧本及城市特色机制移植自 VinsonFung《城市与地铁》网页版 v2.7.0（提交 94a481a7bf5a5bc2e01dfa0c0d0368ad1cb1b421）。伦敦地理数据来自 OpenStreetMap 贡献者，依 ODbL 1.0 提供。深圳剧本的部分历史任务、设施坐标与跑道资料亦参考同一版本。
+
+社区版重庆底图（js/geo_cq.js）使用 Geofabrik 重庆提取包中的 OpenStreetMap 数据，按游戏范围裁切和编码，依 ODbL 1.0 提供。
+https://download.geofabrik.de/asia/china/chongqing.html
+社区版天津底图（js/geo_tj.js）使用 Geofabrik 天津提取包中的 OpenStreetMap 数据，按游戏范围裁切和编码，依 ODbL 1.0 提供。
+https://download.geofabrik.de/asia/china/tianjin.html
 广州和上海扩展底图（js/geo_gz_outer.js、js/geo_sh_outer.js）采用 Geofabrik 广东、上海和江苏提取包中的 OpenStreetMap 数据，并按游戏范围裁切和编码，依 ODbL 1.0 提供。
 https://download.geofabrik.de/asia/china/shanghai.html
 https://download.geofabrik.de/asia/china/guangdong.html

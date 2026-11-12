@@ -880,12 +880,17 @@
       inner[k] = Math.min(600, Math.sqrt(cs.length) * CFG.CELL_M * 0.4);   // 场内步行（米），大型公园与会展场馆约数分钟
       we[k] = f.we || f.T.we || 1;   // 单个设施可覆盖周末倍数（如主题乐园，v2.2）
     });
-    const key = list.map(function (f) { return f.id; }).join(',');
+    const ids = list.map(function (f) { return f.id; }), key = ids.join(',');
     if (this.fn && this.fn.key !== key) this.facDaily = null;
-    this.fn = { F: F, NZ: NZ, list: list, ids: list.map(function (f) { return f.id; }), key: key, hostZ: hostZ, nx: nx, ny: ny, cells: cells, cellFac: cellFac, ringFac: ringFac, inner: inner, reach: reach, excl: excl, we: we };
+    // id → 节点序号：facIndex 每月按设施 id 查询多次，改 O(1) 查表。
+    const byId = new Map(); for (let k = 0; k < ids.length; k++) byId.set(ids[k], k);
+    this.fn = { F: F, NZ: NZ, list: list, ids: ids, byId: byId, key: key, hostZ: hostZ, nx: nx, ny: ny, cells: cells, cellFac: cellFac, ringFac: ringFac, inner: inner, reach: reach, excl: excl, we: we };
     return this.fn;
   };
-  Model.prototype.facIndex = function (id) { return this.fn ? this.fn.ids.indexOf(id) : -1; };
+  Model.prototype.facIndex = function (id) {
+    const v = this.fn && this.fn.byId ? this.fn.byId.get(id) : (this.fn ? this.fn.ids.indexOf(id) : -1);
+    return v == null ? -1 : v;
+  };
 
   // ---------------- 小区与需求 ----------------
   // 小区汇总：人口、岗位；普通设施的分目的吸引量（上学、购物、医疗、休闲，按用地与人口估算）；枢纽接驳的城市端权重。
@@ -969,13 +974,14 @@
     const fL = new Float64Array(F), hubs = [];
     // 各目的的设施吸引合计不超过 trips.facCap（放大设施吸引后，避免设施占去该目的的大部分出行）
     const fSum = [0, 0, 0, 0, 0], capK = [1, 1, 1, 1, 1], FCAP = T.facCap || 1;
-    for (let k = 0; k < F; k++) { const f = fn.list[k]; if (f.T.hub) continue; const s = Fac.share(f, y); for (let p = 1; p < 5; p++) fSum[p] += s * (f.p[PK[p]] || 0); }
+    const shares = fn.list.map(f => f.T.hub ? 0 : Fac.share(f, y, this.city));
+    for (let k = 0; k < F; k++) { const f = fn.list[k]; if (f.T.hub) continue; for (let p = 1; p < 5; p++) fSum[p] += shares[k] * (f.p[PK[p]] || 0); }
     for (let p = 1; p < 5; p++) if (fSum[p] > FCAP) capK[p] = FCAP / fSum[p];
     for (let k = 0; k < F; k++) {
       const f = fn.list[k];
       if (f.T.hub) { hubs.push(k); continue; }
       fL[k] = L2 * f.T.L;
-      const s = Fac.share(f, y);
+      const s = shares[k];
       for (let p = 1; p < 5; p++) {
         const fr = f.p[PK[p]] || 0; if (!fr) continue;
         const a = s * fr * capK[p] * sumA[p];

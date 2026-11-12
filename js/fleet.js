@@ -25,6 +25,18 @@
   const M = function (o) { return Object.assign({ maps: null, max: 8, life: 30, kmh: 80 }, o, { look: Object.assign({}, LOOK[o.look] || LOOK.steel, o.lookX || {}) }); };
   const MODELS = F.MODELS = [
     // 通用车型（虚构）：各城市都能买，按年代更替
+    // 伦敦历史车型，来自原版 v2.7.0。
+    M({ id: 'ld-steam', maps: ['ld'], name: '大都会铁路蒸汽列车', short: '蒸汽列车', from: 1860, to: 1906, cap: 150, price: 90, ops: 1.25, life: 20, max: 6, kmh: 40, look: 'wood', lookX: { body: '#6b3a2a' }, desc: '煤烟弥漫的隧道里跑的木质车厢，1905 年起被电气列车取代' }),
+    M({ id: 'ld-padded', maps: ['ld'], name: '深层地铁“软包车厢”', short: '软包车厢', from: 1890, to: 1910, cap: 110, price: 80, ops: 1.1, life: 25, max: 4, kmh: 40, look: 'wood', desc: '世界第一批深层地铁电动车，窗户极小，乘客戏称为软包病房' }),
+    M({ id: 'ld-gate', maps: ['ld'], name: '门式车厢（1906 型）', short: '门式车厢', from: 1906, to: 1924, cap: 150, price: 100, ops: 1.05, life: 30, max: 6, kmh: 50, look: 'wood', lookX: { body: '#7a2e2a' }, desc: '车厢两端的铁栅门由专人开关，每站要花很长时间' }),
+    M({ id: 'ld-std', maps: ['ld'], name: '标准型车（1923 型）', short: '标准型', from: 1923, to: 1938, cap: 170, price: 120, ops: 1, life: 35, max: 7, kmh: 60, look: 'classicLine', lookX: { body: '#a11e22', band: '#e7dcc4' }, desc: '气动车门的深红色车厢，服役到 1960 年代' }),
+    M({ id: 'ld-38', maps: ['ld'], name: '1938 型车', short: '1938 型', from: 1938, to: 1959, cap: 190, price: 150, ops: 0.98, life: 40, max: 7, kmh: 70, look: 'classicLine', lookX: { body: '#a11e22', band: '#e7dcc4' }, desc: '流线型车头，电机藏在地板下，被视为深层地铁的经典' }),
+    M({ id: 'ld-59', maps: ['ld'], name: '1959 / 1967 型铝合金车', short: '铝合金车', from: 1959, to: 1983, cap: 200, price: 230, ops: 0.96, life: 40, max: 8, kmh: 70, look: 'steel', lookX: { band: '#c8102e' }, desc: '银色车身；1967 型用于维多利亚线，是世界最早的自动驾驶地铁之一' }),
+    M({ id: 'ld-s60', maps: ['ld'], name: '大都会线 A60 型', short: 'A60', from: 1960, to: 1990, cap: 240, price: 260, ops: 0.96, life: 50, max: 8, kmh: 80, look: 'steel', desc: '地下浅埋线路用的大断面车，车内可以站很多人' }),
+    M({ id: 'ld-92', maps: ['ld'], name: '1992 / 1996 型车', short: '1996 型', from: 1992, to: 2008, cap: 220, price: 340, ops: 0.9, life: 35, max: 8, kmh: 90, look: 'whiteNew', lookX: { band: '#c8102e' }, desc: '红白蓝涂装，朱比利线延伸段用的是自动驾驶版本' }),
+    M({ id: 'ld-dlr', maps: ['ld'], name: '码头区轻轨 B 型', short: '轻轨 B 型', from: 1991, to: 9999, cap: 180, price: 260, ops: 0.82, life: 30, max: 4, kmh: 80, look: 'paint', desc: '无人驾驶的小型轻轨车，便宜，但运力有限' }),
+    M({ id: 'ld-s', maps: ['ld'], name: 'S 型车（S Stock）', short: 'S 型车', from: 2009, to: 9999, cap: 270, price: 420, ops: 0.84, life: 35, max: 8, kmh: 100, look: 'whiteNew', lookX: { band: '#c8102e' }, desc: '贯通客室、空调，用于大都会线、区域线与内环线' }),
+    M({ id: 'ld-345', maps: ['ld'], name: '伊丽莎白线 345 型', short: '345 型', from: 2017, to: 9999, cap: 340, price: 520, ops: 0.84, life: 35, max: 8, kmh: 140, look: 'paint', lookX: { band: '#6950a1' }, desc: '200 米长的大容量列车，时速 140 公里' }),
     M({ id: 'gen-early', name: '早期木质电动车', short: '木质车', from: 1900, to: 1938, cap: 170, price: 110, ops: 1.05, life: 35, max: 6, kmh: 50, look: 'wood', desc: '木质车身、通风顶，车厢小、运营费用高' }),
     M({ id: 'gen-classic', name: '战后钢制通勤车', short: '钢制车', from: 1936, to: 1974, cap: 220, price: 170, ops: 1.03, life: 32, max: 6, kmh: 70, look: 'classicLine', desc: '全钢车身、整车涂装' }),
     M({ id: 'gen-steel', name: '不锈钢 B 型车', short: 'B 型车', from: 1968, to: 2015, cap: 250, price: 300, ops: 1, kmh: 80, look: 'steel', desc: '车宽 2.8 m 的标准地铁车' }),

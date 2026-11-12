@@ -238,12 +238,12 @@
     const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     return Math.min(CFG.perf.cacheMaxPx, memory <= 2 ? 8e6 : memory <= 4 || touch ? 12e6 : CFG.perf.cacheMaxPx);
   };
-  Renderer.prototype.adaptDetail = function (dt) {
+  Renderer.prototype.adaptDetail = function (dt, frameDt = dt) {
     const d = this.detail, elapsed = Math.min(0.1, dt || 1 / 60);
     // 地图块绘制时间不计入：它有自己的预算，补块时降低细节只会换来更多重绘
     const q = this.lastQueueMs || 0;
     const work = Math.max(0, (this.lastFrameMs == null ? (this.lastRenderMs || 0) : this.lastFrameMs) - q);
-    const missedFrame = dt > 1 / 45 ? Math.max(0, dt * 1000 - q) : 0;
+    const missedFrame = frameDt > 1 / 45 ? Math.max(0, frameDt * 1000 - q) : 0;
     const cost = Math.min(100, Math.max(work, missedFrame, this.cachePx > this.cacheLimit() ? 20 : 0));
     d.ema += (cost - d.ema) * 0.12;
     d.busy = d.ema > 18 ? d.busy + elapsed : Math.max(0, d.busy - elapsed * 2);
@@ -2838,10 +2838,10 @@
   };
 
   // ---------------- 每帧绘制 ----------------
-  Renderer.prototype.render = function (dt, ui) {
+  Renderer.prototype.render = function (dt, ui, frameDt) {
     const frameStart = performance.now();
     this.frame++; this.time += dt; this.dt = dt;
-    this.adaptDetail(dt);
+    this.adaptDetail(dt, frameDt);
     this.resize();
     const ctx = this.ctx, dpr = this.dpr, g = this.game;
     if (!g) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = U.rgb(TH.bg); ctx.fillRect(0, 0, this.cv.width, this.cv.height); return; }
@@ -2947,18 +2947,26 @@
       list.sort(function (a, b) { return (a[0] + a[1]) - (b[0] + b[1]) || a[0] - b[0]; });
       const buckets = agents && agentAlpha > 0 ? agents.bucket(C, this) : null;
       const sc = z / ilvl;
-      // 地标按其中心所在分块归组，在该分块之后绘制（与前后建筑正确遮挡）
-      const city = this.game.city, lmBy = new Map();
-      for (let k = 0; k < D.landmarks.length; k++) {
-        if (!city.landmarkOn[k]) continue;
-        const lm = D.landmarks[k], kk = Math.floor(lm.x / C) + ':' + Math.floor(lm.y / C);
-        let l = lmBy.get(kk); if (!l) { l = []; lmBy.set(kk, l); } l.push(k);
+      // 地标按其中心所在分块归组，在该分块之后绘制（与前后建筑正确遮挡）。
+      // 分组只随「月份 / 地标启用 / 设施模型版本 / 分块尺寸 / 地图」变化，逐帧复用，不再每帧重建两个 Map。
+      const city = this.game.city, facm = this.syncFacModels();
+      const gkey = C + ':' + city.version + ':' + (facm ? facm.key + ':' + facm.ver : '-') + ':' + D.landmarks.length + ':' + CM.mapId;
+      let grp = this._modelGroups;
+      if (!grp || grp.key !== gkey || grp.city !== city) {
+        const lmBy = new Map();
+        for (let k = 0; k < D.landmarks.length; k++) {
+          if (!city.landmarkOn[k]) continue;
+          const lm = D.landmarks[k], kk = Math.floor(lm.x / C) + ':' + Math.floor(lm.y / C);
+          let l = lmBy.get(kk); if (!l) { l = []; lmBy.set(kk, l); } l.push(k);
+        }
+        const extraBy = new Map();
+        for (const it of (facm ? (facm.all || facm.list.concat(facm.hubs)) : [])) {
+          const key = Math.floor(it.x / C) + ':' + Math.floor(it.y / C);
+          let a = extraBy.get(key); if (!a) extraBy.set(key, a = []); a.push(it);
+        }
+        grp = this._modelGroups = { key: gkey, city: city, lmBy: lmBy, extraBy: extraBy };
       }
-      const extraBy = new Map();
-      for (const it of this.extraModels()) {
-        const key = Math.floor(it.x / C) + ':' + Math.floor(it.y / C);
-        let a = extraBy.get(key); if (!a) extraBy.set(key, a = []); a.push(it);
-      }
+      const lmBy = grp.lmBy, extraBy = grp.extraBy;
       for (const it of list) {
         const ci = it[0], cj = it[1];
         if (buckets) { const bk = buckets.get(ci + ':' + cj); if (bk) agents.drawList(ctx, this, bk, agentAlpha); }
@@ -4485,8 +4493,10 @@
     const T = CM.tools, building = T && (T.tool === 'station' || T.tool === 'line'), hov = T && T.portalHover;
     const accent = TH.night ? '#6f9fe0' : '#3f6fb0', grey = TH.night ? '#5d6a7e' : '#9aa6b6';
     const gr = U.clamp(z * 0.4, 11, 15), sel = CM.ui && CM.ui.selection;
-    for (const f of Fac.list()) {
-      if (!f.ext) continue;
+    // 接驳口只有少数几个设施；按当前设施表引用缓存子集，避免每帧遍历整张表。
+    const facs = Fac.list();
+    const ext = this._extSrc === facs ? this._extList : (this._extSrc = facs, this._extList = facs.filter(function (q) { return q.ext; }));
+    for (const f of ext) {
       const G = this.gateGeom(f), e = G.e, n = G.n;
       if (e.x < -240 || e.x > this.w + 240 || e.y < -240 || e.y > this.h + 240) { this._portals.push({ f: f, sx: e.x, sy: e.y, card: null }); continue; }
       const active = yr >= f.open && (f.close == null || yr < f.close);
@@ -4580,15 +4590,22 @@
   Renderer.prototype.scenicZones = function () {
     const g = this.game, city = g.city, Fac = CM.Fac;
     if (!Fac || !city.regions.some(function (r) { return r.scenic; })) return null;
-    const yr = city.terrainYear || CFG.START.y;
-    const active = Fac.list().filter(function (f) { return !f.T.hub && Fac.active(f, yr, city); });
-    const key = [city.uid, city.terrainVer, city.regionOpen.join(','), city.landmarkOn.join(','), active.map(function (f) { return f.id; }).join(','), this.themeName].join(':');
+    const yr = g.year();
+    const key = [city.uid, city.version, city.terrainVer, city.lockVer, city.unlockAll, yr, this.themeName].join(':');
     if (this._scz && this._scz.key === key) return this._scz.list;
+    const active = Fac.list(city).filter(function (f) {
+      const c = city.cellAt(f.x, f.y);
+      return !f.T.hub && c >= 0 && city.regions[city.region[c]].scenic && Fac.active(f, yr, city);
+    });
+    const shape = [city.uid, city.geoVer, city.terrainVer, city.lockVer, city.unlockAll, this.themeName,
+      active.map(f => f.id + '@' + f.x + ',' + f.y).join('|')].join(':');
+    if (this._scz && this._scz.shape === shape) {
+      this._scz.key = key;
+      return this._scz.list;
+    }
     const list = [], night = TH.night;
     const fillC = night ? [128, 214, 160] : [38, 132, 84];
     for (const f of active) {
-      const c0 = city.cellAt(f.x, f.y);
-      if (c0 < 0 || !city.regions[city.region[c0]].scenic || !Fac.active(f, yr, city)) continue;
       const n = Math.ceil(SCENIC_RAD * 2 * SCENIC_RES), x0 = f.x - SCENIC_RAD, y0 = f.y - SCENIC_RAD;
       const inside = new Uint8Array(n * n);
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
@@ -4607,7 +4624,7 @@
       x.putImageData(img, 0, 0);
       list.push({ f: f, cv: cv, x0: x0, y0: y0, n: n, ink: U.rgb(fillC, 0.95) });
     }
-    this._scz = { key: key, list: list };
+    this._scz = { key: key, shape: shape, list: list };
     return list;
   };
   // 历史城区与地下保护范围（v2.6）：选址、绘线时用淡紫色标出——这里只能走地下，隧道、车站与拆迁都更贵

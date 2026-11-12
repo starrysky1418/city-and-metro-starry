@@ -137,4 +137,40 @@
         events:[{id:'wto2001',y:2001,m:12},{id:'sars2003',y:2003,m:4},{id:'gfc2008',y:2008,m:9},{id:'stim2008',y:2008,m:11},{id:'cnstock2015',y:2015,m:6},{id:'covid2020',y:2020,m:1}]},
     },
   });
+
+  // 补充热点地区（2026-11-12）：知名但此前未列入「重要设施」的地点。
+  // 坐标取自 OSM 底图同名点，缺失时按经纬度投影；规模按同城同类设施的中低档取值。
+  // 追加在数组末尾，不打乱既有设施顺序；引擎按 id 生成缓存键，旧存档不受影响。
+  (function (data) {
+    data.facilities.push(
+      { id: 'nj_hot_1', n: '中山陵', t: 'scenic', at: [150.4, 132.3], w: 0.03, note: '紫金山南麓，1929 年建成' },
+      { id: 'nj_hot_2', n: '明孝陵', t: 'scenic', at: [147.8, 132.8], w: 0.022, note: '明太祖陵寝，世界文化遗产' },
+      { id: 'nj_hot_3', n: '总统府', t: 'scenic', at: [130.8, 139.9], w: 0.02, note: '近代史建筑群与博物馆' },
+      { id: 'nj_hot_4', n: '玄武湖', t: 'park', at: [132.7, 127], w: 0.024, note: '紫金山脚下的城内湖泊' },
+      { id: 'nj_hot_5', n: '雨花台', t: 'park', at: [122.9, 162.2], w: 0.014, note: '城南纪念性风景区' },
+      { id: 'nj_hot_6', n: '鸡鸣寺', t: 'scenic', at: [129, 133.3], w: 0.014, note: '玄武湖西南的千年古寺' },
+      { id: 'nj_hot_7', n: '侵华日军南京大屠杀遇难同胞纪念馆', t: 'scenic', at: [111.6, 143.9], w: 0.016, note: '1985 年建馆，建邺区水西门' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'nj'; }).data);
+
+  // 热点地区调整（2026-11-12）：市中心合并 + 外围补充。
+  // 代表设施保留原 id；被合并设施从数组移除，需求按 w/pax 叠加。
+  // 市中心按传统老城中心半径 24 格聚类，3 格内相邻设施并入代表设施；
+  // 接驳口 / 跑道 / 有停用年 / 铁路与机场枢纽不参与合并；外围补充见下方 push。
+  (function (data) {
+    var fs = data.facilities, drop = {};
+    for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
+    var upd = {
+
+    };
+    for (var j = 0; j < fs.length; j++) { var u = upd[fs[j].id]; if (u) for (var k in u) fs[j][k] = u[k]; }
+    data.facilities.push(
+      { id: 'nj_outer_1', n: '栖霞山', t: 'scenic', at: [188.9, 87.5], w: 0.016, note: '栖霞寺与南朝石窟，秋枫名胜' },
+      { id: 'nj_outer_2', n: '牛首山', t: 'scenic', at: [115, 190.9], y0: 2015, w: 0.014, note: '2015 年牛首山文化旅游区开放' },
+      { id: 'nj_outer_3', n: '汤山温泉', t: 'scenic', at: [209.8, 140.7], w: 0.012, note: '江宁汤山温泉与猿人洞' },
+      { id: 'nj_outer_4', n: '珍珠泉', t: 'park', at: [78.6, 106.1], w: 0.01, note: '浦口定山西麓珍珠泉风景区' },
+      { id: 'nj_outer_5', n: '燕子矶', t: 'scenic', at: [138.3, 98.4], w: 0.01, note: '长江南岸三大名矶之首' },
+      { id: 'nj_outer_6', n: '老山国家森林公园', t: 'park', at: [48.8, 107.6], w: 0.01, note: '浦口老山山脉' },
+    );
+  })(CM.MAP_LIST.find(function (m) { return m.id === 'nj'; }).data);
 })(window.CM);

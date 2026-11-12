@@ -42,8 +42,8 @@
     jp: { name: '公私合作', from: 1970, note: '参照日本地方政府与民间企业合资建设、运营轨道的做法' },
     sg: { name: '轨道运营授权', from: 1987, note: '参考新加坡早期轨道运营授权与后续风险分担；投标和补助采用游戏统一的合同规则。' }
   };
-  const MAP_FLAVOR={gz:'cn',hz:'cn',wh:'cn',sh:'cn',bj:'cn',sz:'cn',nj:'cn',su:'cn',hk:'hk',tp:'tw',pa:'fr',tk:'jp',sg:'sg'};
-  Corp.flavor = function (g) { return g ? FLAVOR[MAP_FLAVOR[g.mapId]] || null : null; };
+  const MAP_FLAVOR={gz:'cn',hz:'cn',wh:'cn',sh:'cn',bj:'cn',sz:'cn',nj:'cn',su:'cn',cd:'cn',cq:'cn',tj:'cn',hk:'hk',tp:'tw',pa:'fr',tk:'jp',sg:'sg'};
+  Corp.flavor = function (g) { return g ? FLAVOR[MAP_FLAVOR[g.mapId]] || CM.Traits?.FLAVOR[CM.DATA.corpFlavor] || null : null; };
   Corp.enabled = function (g) { return !!g && !!g.econ && g.econ.mode === 'challenge' && !g.tutorial && !CM.DATA.noDynTasks && !!Corp.flavor(g); };
   Corp.grade = function (r) { return r >= 80 ? 'A' : (r >= 60 ? 'B' : (r >= 40 ? 'C' : 'D')); };
   // 履约信誉与拨款：50 分 ×1.00，100 分 ×1.05，0 分 ×0.95

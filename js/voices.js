@@ -49,7 +49,12 @@
   // 生成本月的反馈（周平均日、工作日早高峰等已发布结果）；kind：bad 吐槽 / good 点赞 / idea 建议
   Voices.generate = function (g) {
     const m = g.model; if (!m.trafficReady() || !m.net) return [];
-    const key = g.ym() + ':' + g.netVersion + ':' + (g.impactReport && g.impactReport.version || 0);
+    const city = g.city, locked = city.lockState().mask;
+    const canSuggest = function (x, y) {
+      const c = city.cellAt(x, y);
+      return c >= 0 && !locked[c] && !!city.regionOpen[city.lockRegion(c)];
+    };
+    const key = g.ym() + ':' + g.netVersion + ':' + city.lockVer + ':' + city.terrainVer + ':' + m.epoch + ':' + (g.impactReport && g.impactReport.version || 0);
     if (Voices.cache && Voices.cache.g === g && Voices.cache.key === key) return Voices.cache.list;
     const out = [], C = m.net.C, acc = m.net.acc, ym = g.ym(), sd = m.stDailyWk || m.stDaily;
     used = {};
@@ -68,9 +73,9 @@
     };
     // 片区覆盖：人口多但步行 15 分钟内没有车站
     const gaps = [];
-    for (let z = 0; z < m.Z; z++) if (m.zPop[z] > 6000 && (acc.zCov[z] || 0) < 0.15) gaps.push(z);
+    for (let z = 0; z < m.Z; z++) if (m.zPop[z] > 6000 && (acc.zCov[z] || 0) < 0.15 && canSuggest(m.zCx[z], m.zCy[z])) gaps.push(z);
     gaps.sort(function (a, b) { return m.zPop[b] - m.zPop[a]; });
-    for (const z of gaps.slice(0, 3)) { const p = g.zoneName(z).replace(/（.*?）/, '').replace(/一带$/, ''); post('bad', 'cover', fill(say(SAY.cover, z + ym), { p: p }), m.zPop[z], { zone: z }, ['覆盖'], p, null, ['cover'], { p: p, pop: m.zPop[z], near: nearSt(z) }); }
+    for (const z of gaps.slice(0, 3)) { const p = g.zoneName(z, canSuggest).replace(/（(.*?)）/, '$1').replace(/^片区(?=.+)|一带$/g, ''); post('bad', 'cover', fill(say(SAY.cover, z + ym), { p: p }), m.zPop[z], { zone: z }, ['覆盖'], p, null, ['cover'], { p: p, pop: m.zPop[z], near: nearSt(z) }); }
     // 新开车站（近 6 个月）
     const fresh = [];
     C.stations.forEach(function (s, i) { const st = g.net.stations[s.id]; if (st && st.built && ym - U.ymIndex(st.built[0], st.built[1]) <= 6 && C.serviced[i]) fresh.push(i); });
@@ -113,7 +118,7 @@
     // 重要设施：到访量大但乘地铁比例很低
     if (m.fn && CM.Tasks) {
       const fs = [];
-      for (const f of m.fn.list) { if (f.T.hub) continue; const r = CM.Tasks.facShareOf(m, f, CM.Tasks.facBasis(f)); if (r && r.vol > 4000 && r.share < 0.08) fs.push([f, r.vol, r.share]); }
+      for (const f of m.fn.list) { if (f.T.hub || !canSuggest(f.x, f.y) || !CM.Fac.active(f, g.year(), city)) continue; const r = CM.Tasks.facShareOf(m, f, CM.Tasks.facBasis(f)); if (r && r.vol > 4000 && r.share < 0.08) fs.push([f, r.vol, r.share]); }
       fs.sort(function (a, b) { return b[1] - a[1]; });
       for (const x of fs.slice(0, 2)) post('idea', 'fac', fill(say(SAY.fac, hash(x[0].id) + ym), { x: x[0].name }), x[1], { fac: x[0].id }, ['接驳'], '', FAC_ROLE[x[0].t], ['fac', { x: short(x[0].name) }], { x: short(x[0].name), vol: x[1], share: x[2] });
     }

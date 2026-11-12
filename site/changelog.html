@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>更新日志 · 城市与地铁 Starry 社区版</title>
-<meta name="description" content="《城市与地铁》Starry 非商业社区修改版自己的更新日志：1.0 为作者原始工作总结，1.1 记录纽约都会区、全图票价核对与正式上线。">
+<meta name="description" content="《城市与地铁》Starry 非商业社区修改版自己的更新日志：1.0 为作者原始工作总结，1.1 记录纽约都会区、全图票价核对与正式上线，1.2 记录 v2.7 引擎整合、全图复核与天津。">
 <meta name="theme-color" content="#eaf1f7">
 <link rel="icon" type="image/png" href="assets/img/favicon.png">
 <link rel="stylesheet" href="assets/style.css">
@@ -45,7 +45,7 @@
       <div>
         <span class="eyebrow"><i class="dot"></i> CHANGELOG</span>
         <h1>版本记录</h1>
-        <p class="hero-sub" style="max-width:44em">这是 Starry 非商业社区修改版自己的更新日志，不是原版的版本记录。1.0 为作者原始工作总结，1.1 记录其中「本地开发版本」的正式发布与上线。</p>
+        <p class="hero-sub" style="max-width:44em">这是 Starry 非商业社区修改版自己的更新日志，不是原版的版本记录。1.0 为作者原始工作总结，1.1 记录其中「本地开发版本」的正式发布与上线，1.2 记录 v2.7 引擎整合、全图复核、性能优化与天津。</p>
         <div class="hero-actions" style="margin-top:24px">
           <a class="btn btn-primary" data-play href="../">打开游戏 <span class="arrow">→</span></a>
           <a class="btn btn-ghost" href="index.html">返回首页</a>
@@ -58,6 +58,47 @@
     <div class="wrap">
 
       <div class="log-list">
+
+        <!-- 1.2 -->
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.2</div>
+            <div class="log-date">2026-11-12 · 已上线</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>v2.7 引擎整合、全图复核与天津</h3>
+            <p class="log-lead">游戏内引擎版本对齐原版 <strong>2.7.0</strong>，社区发行版版本仍按自己的序列独立递增为 <strong>1.2</strong>。存档结构与规则修订号未变，旧档可以直接继续游玩。本作依旧是社区修改版，不是官方版本。</p>
+
+            <div class="log-group">
+              <h4>引擎整合与复核</h4>
+              <ul>
+                <li>整合原版 v2.7 的<strong>新版线路图与线网成长回放、城市总评、城市特色机制库</strong>，以及地铁芯里的票价管理与车站批量操作。</li>
+                <li>逐条补回九张原有地图在 2.7 中的城市特色与史实，每条先经校验再写入；依赖深港口岸连接与硬编码格坐标的条目未启用，社区版原有数据一条未删。</li>
+                <li><strong>历史事件</strong>：逐图核对日期、游戏内效果与资料来源；天津 13 条事件含开局说明与 12 条带来源的史实。</li>
+                <li><strong>票价与财政</strong>：逐图比对开局票价、里程票制、起始资金与月拨款。原版 2.7 把深圳、杭州默认票价由 2 调到 3，但同时重算了造价、拨款与 GDP；社区版 1.1 是按各自史实开局单独校准过整套财政的，只改票价会破坏平衡，因此保留社区版 <strong>2 元起步价</strong>。天津按同年代同规模的苏州口径校准。另核对 2.7 引擎的开局票制变化：新开局默认按里程计费，<code>fareDefault</code> 只决定起步价与加价基准，巴黎、纽约、北京、伦敦等 <code>dist: false</code> 的城市仍是全程统一票价。</li>
+                <li><strong>热点地区</strong>：伦敦 67 处设施复核无缺漏；其余地图补齐知名但遗漏的地点，市中心 3 格内重叠设施合并、外围空白片区补点，合计补充与调整 <strong>158 处</strong>，校验异常 0 项。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>地图与性能</h4>
+              <ul>
+                <li>新增<strong>天津（2004 年起）</strong>：从既有线停运改造、津滨轻轨即将通车的年代开局，海河两岸、滨海新区、天津港与滨海国际机场分期进入版图。</li>
+                <li>同期纳入<strong>伦敦（1860 年起）</strong>与本地制作的<strong>成都、重庆</strong>；当前共 <strong>19 张可游玩地图</strong>（18 座真实城市 + 青湾教程）。</li>
+                <li>线性插值区间缓存、设施按 id 的 <code>Map</code> 索引、等距视图地标分组与接驳口列表缓存，减少每帧重复分配与全表遍历；不调整分帧与重绘策略，不改变存档格式。</li>
+              </ul>
+            </div>
+
+            <div class="log-group">
+              <h4>验证与发布</h4>
+              <ul>
+                <li>天津轻量检查 0 ERROR / 0 WARN；热点、城市特色、引用完整性逐图校验通过；源码与发布目录的资源清单、许可副本双端一致。</li>
+                <li>全图无头浏览器开档验收，浏览器异常 0；成品推送发布仓库 <code>main</code> 分支并重新直传 Cloudflare Pages，正式地址与 GitHub Pages 镜像不变。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
         <!-- 1.1 -->
         <div class="log-item">
@@ -170,9 +211,9 @@
       <!-- 方法说明 -->
       <div class="legacy" style="margin-top:28px">
         <h3>关于数据与验证</h3>
-        <p>地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价；开通年份参照公开年表，客流、造价与几何量中的估算部分在仓库的第三方资料说明里标注来源。每轮迭代会检查全部 15 张地图的开局配置，并对预置站名、自动命名与旧存档迁移做专项测试。</p>
+        <p>地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价；开通年份参照公开年表，客流、造价与几何量中的估算部分在仓库的第三方资料说明里标注来源。每轮迭代会检查全部地图的开局配置，并对预置站名、自动命名与旧存档迁移做专项测试。</p>
         <div class="chips">
-          <span class="chip">15 张地图配置检查</span><span class="chip">预置站名测试</span>
+          <span class="chip">19 张地图配置检查</span><span class="chip">预置站名测试</span>
           <span class="chip">新站自动命名测试</span><span class="chip">旧档英文站名转换测试</span>
           <span class="chip">OpenStreetMap · ODbL 1.0</span>
         </div>
