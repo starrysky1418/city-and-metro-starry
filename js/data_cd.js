@@ -140,7 +140,7 @@
       { id: 'cd-tianfu-air', n: '天府机场', t: 'air', lm: 'cd-tianfu-air', y0: [2021, 6], pax: [[2021, 1.2], [2025, 4.0], [2035, 6.0]] },
       { id: 'cd-chunxi', n: '春熙路商圈', t: 'cbd', at: positions.get('春熙路'), w: 0.058 },
       { id: 'cd-finance', n: '金融城', t: 'cbd', at: positions.get('金融城'), w: 0.055 },
-      { id: 'cd-campus', n: '兴隆湖科学城', t: 'uni', at: positions.get('科学城'), w: 0.034 },
+      { id: 'cd-campus', n: '兴隆湖科学城', t: 'uni', at: positions.get('科学城'), y0: 2016, w: [[2016, 0.008], [2020, 0.022], [2025, 0.034]] },
       { id: 'cd-panda', n: '大熊猫繁育研究基地', t: 'scenic', at: positions.get('熊猫基地'), w: 0.028 },
       { id: 'cd-wuhou', n: '武侯祠', t: 'scenic', lm: 'cd-wuhou', w: 0.024 },
       { id: 'cd-dongan', n: '东安湖体育公园', t: 'scenic', lm: 'cd-dongan', y0: [2023, 7], w: 0.036 },
