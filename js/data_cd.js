@@ -43,6 +43,12 @@
     return { name, x, y, r };
   };
   const box = ([w, s, e, n]) => [point(w, n), point(e, n), point(e, s), point(w, s)];
+  // scenic 片区用不规则轮廓：box() 的四条直角边会被整块涂成山体色，在地图上形成突兀的长方形。
+  const blob = ([w, s, e, n]) => {
+    const dx = e - w, dy = n - s, q = (u, v) => point(w + u * dx, s + v * dy);
+    return [q(0.10, 0.96), q(0.38, 1.00), q(0.72, 0.94), q(0.96, 0.78), q(1.00, 0.48),
+      q(0.90, 0.16), q(0.62, 0.02), q(0.28, 0.06), q(0.02, 0.34), q(0.06, 0.68)];
+  };
   const zone = (id, name, plan, pop, open, bounds) => ({ id, name, plan, pop, open, poly: box(bounds) });
   const landmark = (id, name, kind, year, w, d, h) => ({ id, ...where(name), kind, year, w, d, h });
   const task = (id, from, by, title, stops, reward) => ({
@@ -90,8 +96,10 @@
       ],
     },
     regions: [
-      { id: 'longquan_hill', name: '龙泉山城市森林公园', scenic: true, open: null, relief: 130, poly: box([104.280, 30.420, 104.400, 30.880]) },
-      { id: 'panda', name: '大熊猫繁育研究基地', scenic: true, open: null, relief: 25, poly: box([104.135, 30.725, 104.160, 30.745]) },
+      // 熊猫基地先用不规则轮廓占位，避免被下面按林地划定的龙泉山片区吞掉。
+      { id: 'panda', name: '大熊猫繁育研究基地', scenic: true, open: null, relief: 25, poly: blob([104.135, 30.725, 104.160, 30.745]) },
+      // 龙泉山按 OSM 真实林地覆盖率划定，不再用 box() 画成 46×204 格的直角长方形。
+      { id: 'longquan_hill', name: '龙泉山城市森林公园', scenic: true, open: null, relief: 130, woodMin: 0.6 },
       zone('old', '一环内老城', 'cbd', 980000, 2010, [104.030, 30.630, 104.100, 30.690]),
       zone('north', '城北与火车北站', 'mix', 620000, 2010, [104.020, 30.690, 104.140, 30.750]),
       zone('east', '城东与东郊', 'mix', 700000, 2010, [104.100, 30.620, 104.190, 30.710]),

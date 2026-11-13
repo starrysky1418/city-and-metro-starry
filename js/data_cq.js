@@ -43,6 +43,12 @@
     return { name, x, y, r };
   };
   const box = ([w, s, e, n]) => [point(w, n), point(e, n), point(e, s), point(w, s)];
+  // scenic 片区用不规则轮廓：box() 的四条直角边会被整块涂成山体色，在地图上形成突兀的长方形。
+  const blob = ([w, s, e, n]) => {
+    const dx = e - w, dy = n - s, q = (u, v) => point(w + u * dx, s + v * dy);
+    return [q(0.10, 0.96), q(0.38, 1.00), q(0.72, 0.94), q(0.96, 0.78), q(1.00, 0.48),
+      q(0.90, 0.16), q(0.62, 0.02), q(0.28, 0.06), q(0.02, 0.34), q(0.06, 0.68)];
+  };
   const zone = (id, name, plan, pop, open, bounds) => ({ id, name, plan, pop, open, poly: box(bounds) });
   const landmark = (id, name, kind, year, w, d, h) => ({ id, ...where(name), kind, year, w, d, h });
   const task = (id, from, by, title, stops, reward) => ({
@@ -88,8 +94,11 @@
       ],
     },
     regions: [
-      { id: 'geleshan', name: '中梁山与缙云山', scenic: true, open: null, relief: 160, poly: box([106.36, 29.60, 106.44, 29.90]) },
-      { id: 'nanshan', name: '南山森林公园', scenic: true, open: null, relief: 110, poly: box([106.60, 29.51, 106.66, 29.56]) },
+      // 南山先用不规则轮廓占位，避免被下面按林地划定的山地片区吞掉（region 按数组顺序先到先得）。
+      { id: 'nanshan', name: '南山森林公园', scenic: true, open: null, relief: 110, poly: blob([106.60, 29.51, 106.66, 29.56]) },
+      // 中梁山、歌乐山与缙云山按 OSM 真实林地覆盖率划定：山体边界随地形起伏，
+      // 不再用 box() 画成 31×133 格的直角长方形（1.2 版重庆地图的绿色色块）。
+      { id: 'geleshan', name: '中梁山、歌乐山与缙云山林地', scenic: true, open: null, relief: 160, woodMin: 0.6 },
       zone('yuzhong', '渝中半岛老城', 'cbd', 760000, 2004, [106.53, 29.54, 106.60, 29.58]),
       zone('jiangbei', '江北与观音桥', 'mix', 700000, 2004, [106.50, 29.58, 106.55, 29.63]),
       zone('nanan', '南岸与南坪', 'mix', 620000, 2004, [106.55, 29.48, 106.62, 29.54]),

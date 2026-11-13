@@ -101,7 +101,7 @@
   Economy.prototype.opsIndex = function (year) { return U.priceIndex(year, CFG.ops.inflation, CFG.econBase || 1990); };
 
   // 每日结算：票款与运营费用，按当天的日类型（工作日 / 周末）的模拟结果逐日累计（v1.9 起；之前按典型工作日）
-  Economy.prototype.day = function (daily, compiled, year, dt) {
+  Economy.prototype.dayQuote = function (daily, compiled, year) {
     const fareWan = daily && daily.ready ? daily.fare / 10000 : 0;
     let ops = 0;
     if (daily && compiled) {
@@ -109,6 +109,10 @@
       ops += (daily.carKmW != null ? daily.carKmW : daily.carKm) * CFG.ops.carKmCost * oi;   // v2.5：车厢公里按车型的运营成本系数加权
       for (const s of compiled.stations) ops += CFG.ops.stationDaily[s.size] * oi;
     }
+    return { fareWan, ops };
+  };
+  Economy.prototype.day = function (daily, compiled, year, dt, quote) {
+    const { fareWan, ops } = quote || this.dayQuote(daily, compiled, year);
     this.income('fare', fareWan);
     this.spend('ops', ops);
     this.cur.days++;
@@ -505,6 +509,11 @@
   };
 
   // ======================== 任务 ========================
+  // 游戏的片区指标是早高峰非地铁占比，用这个下限避免向已有高分担率的片区继续压指标。
+  const ZONE_CAR_TARGET_MIN = 0.50;
+  const zoneCarText = function (target) {
+    return '让工作日早高峰非地铁出行占比不高于 ' + U.fmtPct(target, 1) + '（近 3 个月平均，降价月份不计）。';
+  };
   function Tasks() {
     this.active = []; this.done = []; this.failed = [];
     this.issued = {};
@@ -630,7 +639,7 @@
     }
     if (t.type === 'zoneCong' && t.metric==='carShare') {
       const v=model.zoneTraffic(t.zone).carShare,cheap=Tasks.fareCheap(t,g);
-      return{ok:v<=t.target&&!cheap,cheap,value:U.clamp((t.start-v)/Math.max(.001,t.start-t.target),0,1),text:'片区工作日早高峰汽车出行占比 '+U.fmtPct(v,1)+' / 目标 ≤ '+U.fmtPct(t.target,1)+(cheap?'（票价低于任务发布时，本月不计）':''),sample:v};
+      return{ok:v<=t.target&&!cheap,cheap,value:v<=t.target?1:U.clamp((t.start-v)/Math.max(.001,t.start-t.target),0,1),text:'片区工作日早高峰非地铁出行占比 '+U.fmtPct(v,1)+' / 目标 ≤ '+U.fmtPct(t.target,1)+(cheap?'（票价低于任务发布时，本月不计）':''),sample:v};
     }
     if (t.type === 'zoneCong') {
       const v = g.zoneCong(t.zone, 'wd');
@@ -1223,18 +1232,20 @@
     const crowdFree = !(cool.crowd > ym) && !active.some(function (t) { return t.type === 'stationCrowd' || t.type === 'lineCrowd'; });
     const cands = [];
     // 拥堵热点（排除近期出过任务的片区）
-    let worst=-1,bestPotential=0;
+    let worst=-1,bestPotential=0,worstTraffic=null;
     const zoneOpen=function(z){let n=0,o=0;for(const c of model.zoneCells[z]){if(city.landFrac[c]<.5)continue;n++;if(!city.cellLocked(c)&&!city.regions[city.region[c]].scenic)o++;}return n>0&&o>=n/2;};   // 可建设范围按格判断（v2.2）
     if(model.trafficReady())for(let z=0;z<model.Z;z++){
-      if(model.zPop[z]+model.zJobs[z]<3000||!zoneOpen(z)||!free('cong:'+z,'zoneCong')||g.zoneCong(z)<1.25)continue;
+      if(model.zPop[z]+model.zJobs[z]<3000||!free('cong:'+z,'zoneCong'))continue;
+      const v=model.zoneTraffic(z);
+      if(v.trips<=100||v.carShare<ZONE_CAR_TARGET_MIN+.008||!zoneOpen(z)||g.zoneCong(z)<1.25)continue;
       if(Tasks.netDist(g,model.zCx[z],model.zCy[z])>12)continue;   // v2.4：离运营车站 3 km 以上的片区不发拥堵任务（偏远片区靠覆盖任务）
-      const v=model.zoneTraffic(z),potential=model.zoneOpportunity(z)/Math.max(1,v.trips);
-      if(v.trips>100&&potential>=.06&&potential>bestPotential){worst=z;bestPotential=potential;}
+      const potential=model.zoneOpportunity(z)/v.trips;
+      if(potential>=.06&&potential>bestPotential){worst=z;bestPotential=potential;worstTraffic=v;}
     }
     if(worst>=0){
       // v2.4 平衡：降幅按可替代的出行估算、更温和（一两处车站或一段延伸就能做到），票价低于发布时的月份不计
-      const v=model.zoneTraffic(worst),drop=U.clamp(bestPotential*.12,.008,.03),target=Math.max(0,v.carShare-drop);
-      cands.push({type:'zoneCong',metric:'carShare',coolKey:'cong:'+worst,zone:worst,start:v.carShare,target,sustain:3,samples:[],fare0:Tasks.fareLevel(g.econ.fare),title:'减少「'+g.zoneName(worst)+'」高峰汽车出行',desc:'让工作日早高峰汽车出行占比降低 '+(drop*100).toFixed(1)+' 个百分点（近 3 个月平均，降价月份不计）。',months:30,reward:60000*ci});
+      const drop=U.clamp(bestPotential*.12,.008,.02),target=Math.max(ZONE_CAR_TARGET_MIN,worstTraffic.carShare-drop);
+      cands.push({type:'zoneCong',metric:'carShare',coolKey:'cong:'+worst,zone:worst,start:worstTraffic.carShare,target,sustain:3,samples:[],fare0:Tasks.fareLevel(g.econ.fare),title:'减少「'+g.zoneName(worst)+'」高峰非地铁出行',desc:zoneCarText(target),months:30,reward:60000*ci});
     }
     // 车站拥挤
     const sdw = model.stDailyWk || model.stDaily;
@@ -1286,8 +1297,9 @@
     for(const t of this.active.slice())if(t.type==='zoneCong'&&t.metric!=='carShare'){
       const v=g.model.zoneTraffic(t.zone),room=g.model.zoneOpportunity(t.zone)/Math.max(1,v.trips);
       t.legacyGoal={start:t.start,target:t.target,streak:t.streak||0,title:t.title,desc:t.desc,deadline:t.deadline&&t.deadline.slice(),progress:t.progress?JSON.parse(JSON.stringify(t.progress)):null};t.metric='carShare';t.start=v.carShare;t.target=Math.max(0,v.carShare-Math.min(.025,room*.15));t.samples=[];t.streak=0;
-      t.title='减少「'+g.zoneName(t.zone)+'」高峰汽车出行';t.desc='降低片区工作日早高峰汽车出行占比，按最近 3 个月平均值评估。旧指标与历史进度已保留，重新建立评估窗口。';
-      if(room<.015){
+      t.target=Math.max(ZONE_CAR_TARGET_MIN,t.target);
+      t.title='减少「'+g.zoneName(t.zone)+'」高峰非地铁出行';t.desc=zoneCarText(t.target);
+      if(room<.015||v.carShare<ZONE_CAR_TARGET_MIN+.008){
         const cov=g.model.net.acc.zCov[t.zone]||0;
         if(cov<.8){t.type='zoneCov';delete t.metric;delete t.sustain;t.start=cov;t.target=Math.min(.85,cov+.15);t.title='改善「'+g.zoneName(t.zone)+'」地铁覆盖';t.desc='该片区当前缺少可替代的地铁行程，目标调整为增加地铁覆盖，不要求消除无法控制的过境拥堵。';}
         else{t.status='withdrawn';t.closedAt=[g.clock.y,g.clock.m];this.active.splice(this.active.indexOf(t),1);this.adjusted=this.adjusted||[];this.adjusted.push(t);this.adjusted=this.adjusted.slice(-60);continue;}
@@ -1497,6 +1509,17 @@
   Tasks.prototype.serialize = function () { return { active: this.active, done: this.done, failed: this.failed, issued: this.issued, nextDyn: this.nextDyn, seq: this.seq, cool: this.cool || {}, adjusted:this.adjusted||[], offers: this.offers || [], nextOffer: this.nextOffer || 0, lineHist: this.lineHist || {} }; };
   Tasks.restore = function (s) {
     const tasks = Object.assign(new Tasks(), s);
+    for (const t of tasks.active) {
+      if (t.type !== 'zoneCong' || t.metric !== 'carShare') continue;
+      t.title = String(t.title || '').replace('汽车出行', '非地铁出行');
+      t.target = Math.max(ZONE_CAR_TARGET_MIN, t.target);
+      if (t.progress?.text) {
+        t.progress.text = t.progress.text.replace('汽车出行', '非地铁出行')
+          .replace(/目标 ≤ [\d.]+%/, '目标 ≤ ' + U.fmtPct(t.target, 1));
+        if (t.progress.sample <= t.target) t.progress.value = 1;
+      }
+      t.desc = zoneCarText(t.target);
+    }
     if (CM.mapId !== 'sh' && CM.mapId !== 'gz') return tasks;
     // 扩图版曾漏移阶段目标坐标。用修正后的剧本位置恢复已生成的任务点，避免再次平移。
     const goals = new Map();

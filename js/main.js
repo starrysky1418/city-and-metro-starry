@@ -320,7 +320,7 @@
     previewCamera(0);
   };
 
-  let last = performance.now(), fpsAcc = 0, fpsN = 0, lastJumpPaint = -1e9;
+  let last = performance.now(), fpsAcc = 0, fpsN = 0;
   let lastPaint = -Infinity, paintDt = 0, agentDt = 0, uiDt = 0, inputAt = 0;
   for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, function () { inputAt = performance.now(); }, { capture: true, passive: true });
   const isStill = function (g, t) {
@@ -338,35 +338,36 @@
     const g = CM.game;
     if (g) {
       try { g.update(dt); } catch (e) { console.error(e); }
-      // 暂停时列车和路面车辆没有位移，低频维护可见对象及淡入淡出即可。
-      agentDt += dt;
-      if (g.speed > 0 || R.interacting || CM.agents.netRef !== g.model.net || agentDt >= 0.05) {
-        try { CM.agents.update(g.speed > 0 ? dt : agentDt, g, R); } catch (e) { console.error(e); }
-        agentDt = 0;
-      }
-      try { CM.Follow.tick(dt); } catch (e) { console.error(e); }
-      try { CM.Tutorial.tick(dt); } catch (e) { console.error(e); }
-      tools.tick(dt);
+      if (!g.jumping) {
+        // 暂停时列车和路面车辆没有位移，低频维护可见对象及淡入淡出即可。
+        agentDt += dt;
+        if (g.speed > 0 || R.interacting || CM.agents.netRef !== g.model.net || agentDt >= 0.05) {
+          try { CM.agents.update(g.speed > 0 ? dt : agentDt, g, R); } catch (e) { console.error(e); }
+          agentDt = 0;
+        }
+        try { CM.Follow.tick(dt); } catch (e) { console.error(e); }
+        try { CM.Tutorial.tick(dt); } catch (e) { console.error(e); }
+        tools.tick(dt);
+      } else agentDt = 0;
     } else if (preview && R.game === preview) {
       agentDt = 0;
       previewCamera(dt);
       try { CM.agents.updatePreview(dt, preview, R); } catch (e) { console.error(e); }
     }
-    // 跳月 / 跳年期间画面被推进卡片遮住、列车车辆静止：地图降频重绘，把时间留给结算
-    const jumpHold = g && g.jumping && t - lastJumpPaint < CFG.perf.jumpRenderMs;
+    // 推进卡片保留下方的最后一帧，避免逐月重画只会短暂出现的地图块。
+    const jumpHold = !!(g && g.jumping);
     // 静止画面按时间降频，高刷新率屏幕也只需约每秒 8 次重绘。
     const still = !jumpHold && g && isStill(g, t);
     paintDt += dt;
     const paint = !jumpHold && (!still || t - lastPaint >= 125);
     if (paint) {
       lastPaint = t;
-      if (g && g.jumping) lastJumpPaint = t;
       try { R.render(Math.min(0.125, paintDt), ui, dt); } catch (e) { console.error(e); }
       paintDt = 0;
     }
     // 仍按原频率更新活动界面；静止时累计时间，降低环境音和 HUD 调度开销。
     uiDt += dt;
-    if ((!R.interacting && !still) || uiDt >= 0.05) {
+    if ((!R.interacting && !still && !jumpHold) || uiDt >= 0.05) {
       try { CM.Soundscape.tick(uiDt); } catch (e) { console.error(e); }
       ui.tick(uiDt);
       uiDt = 0;
@@ -377,7 +378,9 @@
     requestAnimationFrame(frame);
   }
   window.addEventListener('beforeunload', function () { if (!loading && CM.game && !ui.isSaved()) ui.doAutosave(); });
-  window.addEventListener('resize', function () { R.resize(); });
+  window.addEventListener('resize', function () {
+    if (!(CM.game && CM.game.jumping)) R.resize();
+  });
 
   R.resize();
   R.cam.zoom = R.cam.tz = 17; R.cam.view = 1; R.cam.t = 1; previewCamera(0);

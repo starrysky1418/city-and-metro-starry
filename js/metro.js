@@ -690,6 +690,7 @@
   M.speedGrade = function (L) { const v = M.lineKmh(L), G = CFG.metro.speedGrades; for (const x of G) if (x.kmh === v) return x; return G[2]; };
   M.minRadius = function (L) { return M.speedGrade(L).minR; };
   M.warnRadius = function (L) { return M.speedGrade(L).warnR; };
+  M.segmentGrade = function (net, s) { return M.speedGrade(s.speed ? s : net.lines[s.line]); };
   // 拆开线路时新线路沿用原线路的运行速度
   const keepSpeed = function (net, from, to) { const A = net.lines[from], B = net.lines[to]; if (A && B && A.speed) B.speed = A.speed; };
   // ---------------- 运行交路（v2.5 玩家反馈：快慢车、区间车） ----------------
@@ -787,6 +788,7 @@
     net.segments[g1] = { id: g1, line: seg.line, a: seg.a, b: sid, pts: before, type: seg.type, base: base };
     net.segments[g2] = { id: g2, line: seg.line, a: sid, b: seg.b, pts: after, type: seg.type, base: base };
     if (curve) net.segments[g1].curve = net.segments[g2].curve = curve;
+    if (seg.speed) net.segments[g1].speed = net.segments[g2].speed = seg.speed;
     const cp = function (list, rev) { const out = list.map(function (p) { return [p[0], p[1]]; }); return rev ? out.reverse() : out; };
     for (const c of co) {
       const m = net.segments[c.id]; if (!m) continue;
@@ -796,6 +798,7 @@
       net.segments[x1] = { id: x1, line: m.line, a: m.a, b: sid, pts: cp(c.rev ? after : before, c.rev), type: m.type, base: mb };
       net.segments[x2] = { id: x2, line: m.line, a: sid, b: m.b, pts: cp(c.rev ? before : after, c.rev), type: m.type, base: mb };
       if (curve) net.segments[x1].curve = net.segments[x2].curve = curve;
+      if (m.speed) net.segments[x1].speed = net.segments[x2].speed = m.speed;
     }
     // 插入的车站按所在轨道设站台（地下轨道上为地下站台）；绘线接入的新线路另设自己的站台层（天地换乘）
     if (seg.type !== net.stations[sid].type) {
@@ -839,6 +842,7 @@
             notes.push((ln ? ln.name + ' ' : '') + A.name + '—' + B.name + ' 两侧建设方式不同，合并后统一为' + CFG.metro.typeName[type] + '，原' + CFG.metro.typeName[other] + '部分按改建计费');
           }
           net.segments[id] = { id: id, line: lid, a: o1, b: o2, pts: p1.concat([[st.x, st.y]], p2), type: type, base: Array.from(new Set(base)) };
+          if (s1.speed || s2.speed) net.segments[id].speed = Math.min(M.segmentGrade(net, s1).kmh, M.segmentGrade(net, s2).kmh);
           if (s1.curve && s1.curve === s2.curve) net.segments[id].curve = s1.curve;
         }
       } else {
@@ -907,38 +911,62 @@
   };
 
   // 车站命名
-  M.suggestName = function (net, x, y, city) {
-    const used = new Set(Object.values(net.stations).map(function (s) { return s.name; }));
-    const cands = (D.stationPlaces || D.places).map(function (p) { return { n: p[0], d: U.dist(x, y, p[1], p[2]), x: p[1], y: p[2], type: p[3] }; }).sort(function (a, b) { return a.d - b.d; });
-    if (D.stationPlaces) {
-      const stop = cands.find(c => c.type === 0 && c.d <= 1.2);
-      if (stop && !used.has(stop.n)) return stop.n;
+  const administrativeName = /街道(?:办事处)?$|社区$|居民委员会$|片区$|外围地区$|开发区域$/;
+  function nearbyStationNames(net, x, y, city) {
+    const used = new Set(Object.values(net.stations).map(s => s.name));
+    const local = /^中国/.test(CM.curMap?.()?.region || '');
+    const map = CM.curMap?.()?.id;
+    const entries = new Map();
+    const add = function (n, d, priority) {
+      if (!n || n.length > 16 || used.has(n)) return;
+      const old = entries.get(n);
+      if (!old || priority < old.priority || (priority === old.priority && d < old.d)) entries.set(n, { n, d, priority });
+    };
+    let nearest = null, distance = 7;
+    for (const [name, px, py, type] of D.stationPlaces || D.places) {
+      const d = U.dist(x, y, px, py);
+      if (d < distance && (!local || (!administrativeName.test(name) && type !== 3))) {
+        nearest = { n: name, x: px, y: py }; distance = d;
+      }
+      if (d > 3.2) continue;
+      let priority = D.stationPlaces && type === 0 && d <= 1.2 ? -1 : 0;
+      if (local && priority !== -1) {
+        if (administrativeName.test(name)) priority = 6;
+        else if (type === 0 || type === 1 || /广场$|博物馆$|大学$|机场$/.test(name)) priority = 0;
+        else if (type === 3) priority = 6;
+        else if (/[路街巷]$/.test(name)) priority = map === 'sh' ? 1 : 2;
+        else if (map === 'gz' && /村$|镇$/.test(name)) priority = 1;
+        else priority = map === 'sh' || map === 'gz' ? 2 : 1;
+      }
+      add(name, d, priority);
     }
-    const preferRoad = /^中国/.test(CM.curMap?.()?.region || '');
-    for (const c of cands) {
-      if (c.d > 3.2) break;
-      if (!used.has(c.n) && (!preferRoad || !c.n.endsWith('社区'))) return c.n;
-    }
-    if (preferRoad) {
-      let nearestRoad = '', distance = 3.2;
-      for (const way of city.roadWays || []) {
+    if (local) {
+      const ways = city.roadWays || [], r = 3.2;
+      const nearby = city.roadWayBk ? CM.Geo.query(city.roadWayBk, x - r, y - r, x + r, y + r).map(i => ways[i]) : ways;
+      for (const way of nearby) {
         const road = city.roadGroups[way.g], name = road.name.trim();
-        if (!city.roadsBuilt[way.g] || (road.flags & 4) || used.has(name) ||
+        if (!city.roadsBuilt[way.g] || (road.flags & 4) || used.has(name) || administrativeName.test(name) ||
             !/[路街道巷]$/.test(name) || /高速|快速|匝道/.test(name)) continue;
         const [left, top, right, bottom] = way.bbox;
-        if (x < left - distance || x > right + distance || y < top - distance || y > bottom + distance) continue;
+        if (x < left - r || x > right + r || y < top - r || y > bottom + r) continue;
         const p = way.p;
         for (let i = 0; i + 3 < p.length; i += 2) {
           const d = U.distToSeg(x, y, p[i], p[i + 1], p[i + 2], p[i + 3]);
-          if (d < distance) { distance = d; nearestRoad = name; }
+          if (d <= r) add(name, d, map === 'sh' ? 1 : 2);
         }
       }
-      if (nearestRoad) return nearestRoad;
-      const community = cands.find(c => c.d <= 3.2 && !used.has(c.n));
-      if (community) return community.n;
     }
-    const c0 = cands[0];
-    if (c0 && c0.d < 7) {
+    const names = Array.from(entries.values()).sort((a, b) => a.priority - b.priority || a.d - b.d).map(c => c.n);
+    return { names, nearest, used };
+  }
+  M.stationNameOptions = function (net, sid, city) {
+    const s = net.stations[sid];
+    return s ? nearbyStationNames(net, s.x, s.y, city).names.slice(0, 3) : [];
+  };
+  M.suggestName = function (net, x, y, city) {
+    const { names, nearest: c0, used } = nearbyStationNames(net, x, y, city);
+    if (names.length) return names[0];
+    if (c0) {
       const dx = x - c0.x, dy = y - c0.y;
       const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? '东' : '西') : (dy > 0 ? '南' : '北');
       const nm = c0.n + dir;
@@ -1025,11 +1053,18 @@
     const mc = CFG.metro, stops = plan.stops, n = stops.length, loop = !!B.loop, last = B.legSec.length;
     const seq = loop ? stops.concat([last]) : stops, i0 = seq[0], i1 = seq[seq.length - 1];
     const legLenM = [], legSec = [], legSeg = [], legSegs = [], stopDist = [], stopPt = [];
+    let kmh = 0, opsLength = 0, totalLength = 0;
     for (const i of seq) { stopDist.push(B.stopDist[i] - B.stopDist[i0]); stopPt.push(B.stopPt[i] - B.stopPt[i0]); }
     for (let k = 0; k + 1 < seq.length; k++) {
       const p = seq[k], q = seq[k + 1], refs = [];
       let L = 0, T = 0, vm = 0;
-      for (let i = p; i < q; i++) { L += B.legLenM[i]; T += B.legLenM[i] / B.legV[i]; vm = Math.max(vm, B.legV[i]); refs.push(B.segRefs[i]); }
+      for (let i = p; i < q; i++) {
+        const ref = B.segRefs[i], grade = M.segmentGrade(C.net, C.segs.get(ref.id).seg);
+        kmh = Math.max(kmh, grade.kmh);
+        opsLength += B.legLenM[i] * grade.ops;
+        L += B.legLenM[i]; T += B.legLenM[i] / B.legV[i]; vm = Math.max(vm, B.legV[i]); refs.push(ref);
+      }
+      totalLength += L;
       legLenM.push(L); legSeg.push(refs[0]); legSegs.push(refs);
       legSec.push(q === p + 1 ? B.legSec[p] : Math.max(T + (B.legV[p] + B.legV[q - 1]) / (2 * mc.accel), legTime(L, vm, mc.accel)));
     }
@@ -1040,7 +1075,7 @@
     return {
       id: 0, lineId: B.lineId, line: line, color: line.color, label: M.svcLabel(line, sv), loop: loop, branch: false, main: false, svc: sv.id, baseId: B.id, skipped: (loop ? B.stIds.length : plan.ib - plan.ia + 1) - n,
       lvPen: stops.map(function (i) { return B.lvPen[i]; }), stIds: stIds, stIdx: stIdx, segRefs: legSeg, legSegs: legSegs, pts: pts, hs: hs, cum: cum, stopDist: stopDist, stopPt: stopPt, legLenM: legLenM, legSec: legSec, legV: B.legV,
-      cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: loop ? runSec + mc.dwell * n : 2 * runSec + 2 * mc.dwell * Math.max(0, n - 2) + 2 * mc.turnaround, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh: B.kmh, opsK: B.opsK,
+      cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: loop ? runSec + mc.dwell * n : 2 * runSec + 2 * mc.dwell * Math.max(0, n - 2) + 2 * mc.turnaround, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh, opsK: opsLength / Math.max(1, totalLength),
     };
   };
   M.compile = function (net, city) { return M.withSegIndex([net], function () { return compile(net, city); }); };
@@ -1072,10 +1107,10 @@
       C.lines.push(line);
       if (tp.topo === 'invalid' || tp.topo === 'empty') continue;
       if (tp.routes.some(function (rt) { return rt.segs.some(function (ref) { return !C.segs.has(ref.id); }); })) continue;
-      const vk = M.lineKmh(line) / 80, grade = M.speedGrade(line), bases = [];   // 运行速度按建设方式的基准速度等比调整（未设定为 80 km/h，即基准速度）
+      const bases = [];
       tp.routes.forEach(function (rt, ri) {
         const pts = [], hs = [], stopDist = [0], stopPt = [0], legLenM = [], legSec = [], legSeg = [], legV = [];
-        let minCars = 8, length = 0;
+        let minCars = 8, length = 0, kmh = 0, opsLength = 0;
         for (let k = 0; k < rt.segs.length; k++) {
           const ref = rt.segs[k], cs = C.segs.get(ref.id);
           let p = cs.g.pts, h = cs.h;
@@ -1086,7 +1121,10 @@
           }
           stopDist.push(length); stopPt.push(pts.length - 1);
           const Lm = cs.g.lenM;
-          let vmax = Math.min(mc.vmax[cs.seg.type], mc.vmax[cs.seg.transition?.to || cs.seg.type]) * vk;
+          const grade = M.segmentGrade(net, cs.seg);
+          kmh = Math.max(kmh, grade.kmh);
+          opsLength += Lm * grade.ops;
+          let vmax = Math.min(mc.vmax[cs.seg.type], mc.vmax[cs.seg.transition?.to || cs.seg.type]) * grade.kmh / 80;
           if (isFinite(cs.g.minRadiusM)) vmax = Math.min(vmax, Math.max(8, Math.sqrt(mc.latAccel * cs.g.minRadiusM)));
           legLenM.push(Lm); legSec.push(legTime(Lm, vmax, mc.accel)); legSeg.push(ref); legV.push(vmax);
         }
@@ -1108,7 +1146,7 @@
         const route = {
           id: C.routes.length, lineId: lid, line: line, color: line.color, label: label, loop: rt.loop, branch: tp.topo === 'branch', main: tp.main != null && rt.st[rt.st.length - 1] === tp.main, lvPen: lvPen,
           stIds: rt.st, stIdx: stIdx, segRefs: legSeg, legSegs: legSeg.map(function (ref) { return [ref]; }), pts: pts, hs: hs, cum: cum, stopDist: stopDist, stopPt: stopPt, legLenM: legLenM, legSec: legSec, legV: legV,
-          cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: cycleSec, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh: grade.kmh, opsK: grade.ops,
+          cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: cycleSec, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh, opsK: opsLength / Math.max(1, legLenM.reduce((a, b) => a + b, 0)),
         };
         C.routes.push(route); bases.push(route);
       });
@@ -1305,7 +1343,7 @@
     for (const id in off.segments) offGeom[id] = M.segGeom(off, off.segments[id], city);
     // 共线运营：同一条物理轨道只建一次。已建轨道上新增的线路区段不另收建设与拆迁费；
     // 同一草案里新建的共线区段只按编号最小的一段计费
-    const coFree = new Map();   // 区段 → 共用其轨道的线路
+    const coFree = new Map(), coGrade = new Map();
     {
       const byKey = new Map();
       for (const id in draft.segments) { const s = draft.segments[id], k = M.trackKey(s); if (!byKey.has(k)) byKey.set(k, []); byKey.get(k).push(s); }
@@ -1313,6 +1351,7 @@
         if (list.length < 2) return;
         const built = list.find(function (s) { const o = off.segments[s.id]; return o && M.trackKey(o) === M.trackKey(s); });
         const payer = built || list.slice().sort(function (x, y) { return M.idNum(x.id) - M.idNum(y.id); })[0];
+        if (!built) coGrade.set(payer.id, list.map(s => M.segmentGrade(draft, s)).reduce((a, b) => a.kmh > b.kmh ? a : b));
         for (const s of list) if (s !== payer && s.line !== payer.line) coFree.set(s.id, draft.lines[payer.line]);
       });
     }
@@ -1320,6 +1359,11 @@
     const usedBase = new Set();
     // 改了运行速度的线路（v2.5）：全线按新速度的最小半径复核
     const respeed = new Set();
+    const trackGrades = new Map();
+    for (const s of Object.values(off.segments)) {
+      const key = M.trackKey(s);
+      trackGrades.set(key, Math.max(trackGrades.get(key) || 0, M.segmentGrade(off, s).track));
+    }
     for (const lid in draft.lines) if (off.lines[lid] && M.lineKmh(off.lines[lid]) !== M.lineKmh(draft.lines[lid])) respeed.add(lid);
     for (const id in draft.segments) {
       const s = draft.segments[id];
@@ -1329,6 +1373,8 @@
       const A = draft.stations[s.a], B = draft.stations[s.b];
       const lbl = lname + ' ' + A.name + '—' + B.name;
       const o = off.segments[id];
+      const grade = M.segmentGrade(draft, s), oldGrade = o && M.segmentGrade(off, o);
+      const speedChanged = oldGrade && oldGrade.kmh !== grade.kmh;
       let base = null;
       if (o) base = [id]; else if (s.base) base = s.base.filter(function (b) { return off.segments[b]; });
       if (base && base.length) for (const b of base) usedBase.add(b);
@@ -1364,6 +1410,20 @@
         }
       }
       if (full) { touched.add(id); res.paidLen[id] = g.lenM; }
+      if (speedChanged || (o && s.speed !== o.speed)) {
+        res.changes.mod.push('轨道提速设置 ' + lbl + '（' + oldGrade.kmh + ' → ' + grade.kmh + ' km/h）');
+        res.affectedLines.add(s.line);
+      }
+      if (!full || (shared && trackGrades.has(M.trackKey(s)))) {
+        const key = M.trackKey(s);
+        const inherited = base?.length ? Math.min(...base.map(id => M.segmentGrade(off, off.segments[id]).track)) : 0;
+        const paid = Math.max(trackGrades.get(key) || 0, inherited);
+        if (grade.track > paid) {
+          const cost = (g.parts || [{type:s.type,g}]).reduce((sum, part) => sum + part.g.lenM / 1000 * C.trackPerKm[part.type], 0);
+          item('upgrade', '提速改造 ' + lbl + '（' + grade.kmh + ' km/h）', cost * (grade.track - paid) * ci, id);
+          trackGrades.set(key, grade.track);
+        }
+      }
       if (full && !shared) for (const { type, g:part } of g.parts || [{ type:s.type, g }]) {
         const rn = M.railCrossN(part, type);
         item('construction', (base && base.length ? '改建轨道 ' : '新建轨道 ') + lbl + '（' + U.fmtKm(part.lenM) + (part.waterM > 1 ? '，' + (type === 'underground' ? '越江隧道 ' : '跨江桥梁 ') + U.fmtKm(part.waterM) : '') + (rn ? '，' + (type === 'underground' ? '下穿' : '上跨') + '铁路 ' + rn + ' 处' : '') + '）', M.trackCost(part, type, year), id);
@@ -1371,7 +1431,7 @@
         item('demolition', '沿线拆迁 ' + lbl, dm.cost, id);
         res.demolitions.push.apply(res.demolitions, dm.cells);
         if (part.hillM > 1) item('construction', '风景区环境保护费 · ' + lbl + '（景区内 ' + U.fmtKm(part.hillM) + '）', M.envTrackFee(part, type, year), id);
-        const gd = M.speedGrade(line);
+        const gd = coGrade.get(id) || grade;
         if (gd.track > 0) item('construction', '高速线路附加（' + gd.kmh + ' km/h）· ' + lbl, part.lenM / 1000 * C.trackPerKm[type] * gd.track * ci, id);
       }
       // 冲突
@@ -1393,9 +1453,9 @@
           conflict({ type: 'rail', kind: 'seg', ref: id, x: p[0], y: p[1], msg: lbl + '：地面轨道与铁路平面交叉（' + part.railS + ' 处）', how: '地铁不能与铁路平交。把这段轨道改为高架（上跨铁路）或地下（下穿铁路），每处交叉会增加相应的跨越费用；也可以调整线形，在铁路的高架段下方通过。', fixes: [{ label: '改为高架', op: 'segType', seg: id, value: 'elevated' }, toUnder, editSeg] });
         }
       }
-      if ((touched.has(id) || respeed.has(s.line)) && isFinite(g.minRadiusM)) {
-        const R = Math.round(g.minRadiusM), p = g.minRxy || [A.x, A.y], minR = M.minRadius(line), warnR = M.warnRadius(line), kmhTxt = M.lineKmh(line) !== 80 ? '（' + M.lineKmh(line) + ' km/h 线路）' : '';
-        if (R < minR) {
+      if ((touched.has(id) || speedChanged) && isFinite(g.minRadiusM)) {
+        const R = Math.round(g.minRadiusM), p = g.minRxy || [A.x, A.y], minR = grade.minR, warnR = grade.warnR, kmhTxt = grade.kmh !== 80 ? '（' + grade.kmh + ' km/h 区段）' : '';
+        if (g.minRadiusM < minR) {
           const fixes = [{ label: '自动调顺', op: 'autoFit', seg: id }, editSeg];
           const pts = s.pts || [];
           let nearK = -1, nd = 0.8;
@@ -1527,7 +1587,8 @@
       const near = touchedSt.has(s.a) || touchedSt.has(s.b) || (segsBySt.get(s.a) || []).concat(segsBySt.get(s.b) || []).some(function (o) { return o.line === s.line && touched.has(o.id); });
       if (!near) continue;
       const g = M.segGeom(draft, s, city);
-      if (isFinite(g.minRadiusM) && g.minRadiusM < M.minRadius(draft.lines[s.line])) {
+      const minR = M.segmentGrade(draft, s).minR;
+      if (isFinite(g.minRadiusM) && g.minRadiusM < minR) {
         const p = g.minRxy || [draft.stations[s.a].x, draft.stations[s.a].y];
         const lbl = (draft.lines[s.line] ? draft.lines[s.line].name : '') + ' ' + draft.stations[s.a].name + '—' + draft.stations[s.b].name;
         // 起因（v2.4 玩家反馈）：同线在端点站新建或改动的区段，常见于新加的支线比原线路更顺直，本站的站台直线方向随之转向支线、
@@ -1549,7 +1610,7 @@
         }
         fixes.push({ label: '自动调顺', op: 'autoFit', seg: id });
         fixes.push({ label: cause ? '调整本区段线形' : '调整线形', op: 'editSeg', seg: id });
-        conflict({ type: 'radius', kind: 'seg', ref: id, x: p[0], y: p[1], msg: lbl + '：' + msg + '，转弯半径降至约 ' + Math.round(g.minRadiusM) + ' m（最小 ' + M.minRadius(draft.lines[s.line]) + ' m）', how: how, fixes: fixes });
+        conflict({ type: 'radius', kind: 'seg', ref: id, x: p[0], y: p[1], msg: lbl + '：' + msg + '，转弯半径降至约 ' + Math.round(g.minRadiusM) + ' m（最小 ' + minR + ' m）', how: how, fixes: fixes });
       }
     }
     // 线路形态
@@ -1584,11 +1645,6 @@
           const ga = M.speedGrade(ol), gb = M.speedGrade(line);
           res.changes.mod.push(line.name + ' 运行速度 ' + ga.kmh + ' → ' + gb.kmh + ' km/h');
           res.affectedLines.add(lid);
-          if (gb.track > ga.track) {
-            let km = 0, cost = 0;
-            for (const s of M.lineSegs(draft, lid)) { const gm = M.segGeom(draft, s, city); km += gm.lenM / 1000; cost += gm.lenM / 1000 * C.trackPerKm[s.type] * (gb.track - ga.track) * ci; }
-            item('upgrade', '提速改造 ' + line.name + '（' + U.fmtNum(km, 1) + ' km，' + ga.kmh + ' → ' + gb.kmh + ' km/h）', cost, lid);
-          }
         }
         // 支线的运营方向（v2.3）：起点端（主干）与主线方向由玩家指定，只改运营组织，不收费
         if (tp.topo === 'branch') {
@@ -1747,7 +1803,7 @@
   // 一键调顺（v2.6.1）：依次尝试 ①改用圆弧线形 ②去掉转弯点 ③加一个转弯点 ④转动还没建成的车站的站台方向；都放不下时恢复原样并说明原因
   M.autoFit = function (net, segId, city, off) {
     const s = net.segments[segId]; if (!s || !city) return { error: '区段已不存在' };
-    const L0 = net.lines[s.line], minR = M.minRadius(L0), need = minR * 1.02, co = M.coTrackSegs(net, s), oldCurve = s.curve, oldPts = s.pts;
+    const minR = M.segmentGrade(net, s).minR, need = minR * 1.02, co = M.coTrackSegs(net, s), oldCurve = s.curve, oldPts = s.pts;
     const rad = function (x) { const r = M.segGeom(net, x, city).minRadiusM; return isFinite(r) ? r : 1e9; };
     const done = function (text) { M.syncCoTrack(net, s, co); return { notes: [text] }; };
     s.curve = 'arc';
@@ -1769,7 +1825,7 @@
       const t = M.stationTangent(net, s, sid), a0 = Math.atan2(t[1], t[0]), near = []; for (const id in net.segments) { const o = net.segments[id]; if (o !== s && o.line === s.line && (o.a === sid || o.b === sid)) near.push(o); }
       for (const da of [10, -10, 20, -20, 30, -30, 45, -45]) {
         M.setPlatformDir(net, sid, s.line, a0 + da * Math.PI / 180);
-        if (rad(s) >= need && near.every(function (o) { return rad(o) >= M.minRadius(L0); })) return done('已调整「' + st.name + '」的站台方向并改用圆弧线形，最小半径约 ' + Math.round(rad(s)) + ' m');
+        if (rad(s) >= need && near.every(function (o) { return rad(o) >= M.segmentGrade(net, o).minR; })) return done('已调整「' + st.name + '」的站台方向并改用圆弧线形，最小半径约 ' + Math.round(rad(s)) + ' m');
       }
       M.setPlatformDir(net, sid, s.line, null);
     }
@@ -1827,7 +1883,7 @@
     return { stretch: runs(pts, function (m, i) { return tight[i] && tight[i + 1]; }), circle: c ? { c: c.c, r: c.r, need: R0, at: pts[i0] } : null };
   };
   function radiusGuide(net, s, g, city, quick) {
-    const minR = M.minRadius(net.lines[s.line]), t0 = M.tightStretch(g, minR), out = { stretch: t0.stretch, circle: t0.circle, arrow: null, text: '' };
+    const minR = M.segmentGrade(net, s).minR, t0 = M.tightStretch(g, minR), out = { stretch: t0.stretch, circle: t0.circle, arrow: null, text: '' };
     if (quick) return out;
     const pts = g.pts, tp = g.minRxy || pts[g.minRi] || pts[0], up = s.pts || [];
     const ctrl = M.userControl(net, s);

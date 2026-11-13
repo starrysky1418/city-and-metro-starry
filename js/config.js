@@ -104,6 +104,7 @@
         { kmh: 80, minR: 250, warnR: 400, ops: 1, track: 0 },
         { kmh: 100, minR: 400, warnR: 650, ops: 1.12, track: 0.15 },
         { kmh: 120, minR: 600, warnR: 1000, ops: 1.25, track: 0.3 },
+        { kmh: 160, minR: 1000, warnR: 2400, ops: 1.45, track: 0.55 },
       ],
       maxTurnAtStationDeg: 60,  // 车站前后线路方向最大偏转（站台为直线段）
       maxTurnArcDeg: 120,       // 圆弧线形（v2.6.1）的上限：弯道都在站台之外，能否通过由半径决定

@@ -34,6 +34,55 @@
     const st = state(g), hit = arr.filter(function (k) { return ok(k) && !st.done[id + k]; });
     hit.forEach(function (k, i) { add(g, id + k, make(k), i < hit.length - 1 ? g.clock : undefined); });
   }
+  // 上海的部分河面多边形没有名称，按实际轨道与有名称的河道中心线相交判断。
+  const shCrossings = new WeakMap();
+  function shRivers(geom) {
+    if (shCrossings.has(geom)) return shCrossings.get(geom);
+    const names = new Set();
+    const side = (ax, ay, bx, by, x, y) => (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+    for (const river of CM.Geo.waterLines) {
+      const name = river.name === '吴淞江' ? '苏州河' : river.name;
+      if ((name !== '黄浦江' && name !== '苏州河') || names.has(name)) continue;
+      const [left, top, right, bottom] = river.bbox, p = river.p;
+      for (let i = 1; i < geom.pts.length && !names.has(name); i++) {
+        const [ax, ay] = geom.pts[i - 1], [bx, by] = geom.pts[i];
+        const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx), y0 = Math.min(ay, by), y1 = Math.max(ay, by);
+        if (x1 < left || x0 > right || y1 < top || y0 > bottom) continue;
+        for (let j = 2; j < p.length; j += 2) {
+          const cx = p[j - 2], cy = p[j - 1], dx = p[j], dy = p[j + 1];
+          if (Math.max(cx, dx) < x0 || Math.min(cx, dx) > x1 || Math.max(cy, dy) < y0 || Math.min(cy, dy) > y1) continue;
+          if (side(ax, ay, bx, by, cx, cy) * side(ax, ay, bx, by, dx, dy) <= 0 &&
+              side(cx, cy, dx, dy, ax, ay) * side(cx, cy, dx, dy, bx, by) <= 0) { names.add(name); break; }
+        }
+      }
+    }
+    shCrossings.set(geom, names);
+    return names;
+  }
+  function recordShCrossings(g, restore) {
+    const st = state(g), ids = { '黄浦江': 'first-cross', '苏州河': 'first-cross-suzhou' };
+    if (restore && st.shCrossVersion) return;
+    if (restore) {
+      st.list = st.list.filter(r => r.id !== 'first-cross');
+      delete st.done['first-cross'];
+    }
+    const first = new Map();
+    for (const cs of g.compiled.segs.values()) {
+      if (!cs.g || cs.g.waterM <= 30) continue;
+      const built = cs.seg.built, ym = built ? U.ymIndex(built[0], built[1]) : Infinity;
+      for (const river of shRivers(cs.g)) {
+        if (st.done[ids[river]]) continue;
+        const prev = first.get(river);
+        if (!prev || ym < prev.ym) first.set(river, { cs, ym, built });
+      }
+    }
+    for (const [river, { cs, built }] of first) {
+      const when = restore ? (built ? { y: built[0], m: built[1], d: 1 } : g.clock) : undefined;
+      add(g, ids[river], { cat: 'metro', icon: 'route', big: true, title: '地铁首次跨越' + river,
+        desc: '跨水区段约 ' + U.fmtKm(cs.g.waterM) + '，两岸由地铁直接相连' + (restore ? '（按现存轨道补记）' : '') }, when);
+    }
+    st.shCrossVersion = 1;
+  }
   // ---------- 网络状态 ----------
   function netInfo(g) {
     const C = g.compiled, net = g.net;
@@ -67,7 +116,8 @@
       add(g, 'first-line', { cat: 'metro', icon: 'train', big: true, title: (D.city || '城市') + '第一条地铁开通', desc: n.first.L.name + (a && b ? ' ' + a.name + '—' + b.name : '') + '，' + tp.stations.length + ' 座车站' });
     }
     if (n.xfer) add(g, 'first-xfer', { cat: 'metro', icon: 'network', title: '第一座换乘站', desc: '「' + n.xfer.name + '」连接 ' + M.stationLines(g.net, n.xfer.id).map(function (l) { return g.net.lines[l].name; }).join('、') });
-    if (n.river) add(g, 'first-cross', { cat: 'metro', icon: 'route', big: true, title: '地铁首次跨越' + n.river, desc: '跨水区段约 ' + U.fmtKm(n.crossM) + '，两岸由地铁直接相连' });
+    if (g.mapId === 'sh') recordShCrossings(g, false);
+    else if (n.river) add(g, 'first-cross', { cat: 'metro', icon: 'route', big: true, title: '地铁首次跨越' + n.river, desc: '跨水区段约 ' + U.fmtKm(n.crossM) + '，两岸由地铁直接相连' });
     if (n.loop) add(g, 'first-loop', { cat: 'metro', icon: 'route', title: '第一条环线建成', desc: n.loop.name + '首尾相接，形成环线' });
     series(g, KM, function (k) { return n.km >= k; }, 'km-', function (k) { return { cat: 'metro', icon: 'metro', big: k >= 100, title: '地铁总里程突破 ' + k + ' 公里', desc: '目前 ' + n.lines + ' 条线路，共 ' + U.fmtNum(n.km, 1) + ' km' }; });
     series(g, LINES, function (k) { return n.lines >= k; }, 'lines-', function (k) { return { cat: 'metro', icon: 'network', title: '地铁线路达到 ' + k + ' 条', desc: '网络总里程 ' + U.fmtNum(n.km, 0) + ' km' }; });
@@ -121,7 +171,10 @@
   }
   // 旧存档：按月度历史补记可推断的里程碑（日期取首次达到的月份），其余按当前状态补记
   function backfill(g) {
-    if (g.milestones) return;
+    if (g.milestones) {
+      if (g.mapId === 'sh') recordShCrossings(g, true);
+      return;
+    }
     const st = state(g), H = g.history || [];
     const t0 = H.length ? { y: H[0].y, m: H[0].m, d: 1 } : g.clock;
     add(g, 'start', { cat: 'history', icon: 'flag', title: (H.length ? H[0].y : CFG.START.y) + ' 年 · ' + (D.city || '城市') + '，从这里开始', desc: '' }, t0);
@@ -141,7 +194,8 @@
     // 网络类：无法推断日期的按读档时补记（不弹出提示）
     const n = netInfo(g), now = { y: g.clock.y, m: g.clock.m, d: g.clock.d };
     if (n.xfer) add(g, 'first-xfer', { cat: 'metro', icon: 'network', title: '第一座换乘站', desc: '「' + n.xfer.name + '」（读档时补记）' }, now);
-    if (n.river) add(g, 'first-cross', { cat: 'metro', icon: 'route', title: '地铁首次跨越' + n.river, desc: '（读档时补记）' }, now);
+    if (g.mapId === 'sh') recordShCrossings(g, true);
+    else if (n.river) add(g, 'first-cross', { cat: 'metro', icon: 'route', title: '地铁首次跨越' + n.river, desc: '（读档时补记）' }, now);
     if (n.loop) add(g, 'first-loop', { cat: 'metro', icon: 'route', title: '第一条环线建成', desc: n.loop.name + '（读档时补记）' }, now);
     for (const k of KM) if (n.km >= k) add(g, 'km-' + k, { cat: 'metro', icon: 'metro', title: '地铁总里程突破 ' + k + ' 公里', desc: '（读档时补记）' }, now);
   }

@@ -253,12 +253,16 @@
     }, beforeC);
   };
   Game.prototype.update = function (dt) {
+    // 快进由排队的时间片或求解线程回调继续，动画帧只在尚未排队时启动。
+    if (this.jumping) {
+      if (!this.jumping.next && !this.jumping.waiting) this.stepJump();
+      return;
+    }
     // 交通求解的每帧预算（v2.3 高密度线网）：上一帧除求解外的主线程耗时较少时，把余量让给求解（最多 solverBudgetMaxMs），
     // 大线网改线后更快收敛；画面吃紧时回到基础预算，不降低帧率
     // 镜头移动、拖动时（v2.5 性能）优先保证画面与输入：求解和月结只拿最低预算。只改调度，计算轮次与结果不变
     const P = CFG.perf, moving = !!(CM.R && CM.R.interacting), other = Math.max(0, ((CM.R && CM.R.lastFrameMs) || 0) - (this._solveMs || 0));
     const budget = moving ? P.solverInputMs : U.clamp((P.frameTargetMs || 13) - other, P.solverBudgetMs, P.solverBudgetMaxMs || P.solverBudgetMs);
-    if (this.jumping) { this.stepJump(); return; }
     if (this.pending) {
       const t0 = performance.now(), slice = moving ? 3 : 6;
       while (this.pending && performance.now() - t0 < slice) {
@@ -282,11 +286,17 @@
   };
   // 日终：按当天的日类型（工作日 / 周末）结算票款与运营费用，推进日期；返回是否跨月
   Game.prototype.dayType = function () { return CM.Model.dayType(this.clock.y, this.clock.m, this.clock.d); };
-  Game.prototype.endDay = function () {
-    const dt = this.dayType();
-    this.econ.day(this.model.dailyFor(dt), this.compiled, this.clock.y, dt);
+  Game.prototype.endDay = function (jumpQuotes) {
+    const dt = this.dayType(), daily = this.model.dailyFor(dt);
+    let quote = jumpQuotes && jumpQuotes.get(dt);
+    if (jumpQuotes && (!quote || quote.daily !== daily || quote.stale !== this.model.dailyStale)) {
+      quote = { daily, stale: this.model.dailyStale, day: this.econ.dayQuote(daily, this.compiled, this.clock.y),
+        tod: CM.TOD && CM.TOD.daily(this, dt) };
+      jumpQuotes.set(dt, quote);
+    }
+    this.econ.day(daily, this.compiled, this.clock.y, dt, quote && quote.day);
     // 车站商业开发（TOD，v2.3）：广告与商铺租金，按当天客流逐日计入非票务收入；v2.5 起逐日扣除开发后的运营与维护成本
-    if (CM.TOD) { const v = CM.TOD.daily(this, dt); if (v.rev > 0) this.econ.income('commerce', v.rev); if (v.cost > 0) this.econ.spend('todCost', v.cost); }
+    if (CM.TOD) { const v = quote ? quote.tod : CM.TOD.daily(this, dt); if (v.rev > 0) this.econ.income('commerce', v.rev); if (v.cost > 0) this.econ.spend('todCost', v.cost); }
     this.clock.d++;
     this.rev++;
     if (this.clock.d > U.daysInMonth(this.clock.y, this.clock.m)) {
@@ -386,7 +396,7 @@
       if (CM.Milestones) CM.Milestones.onReclaim(this, r);
     }
     const before = city.roadsBuilt.slice();
-    if (city.applyRoads(y)) {
+    if (this.jumping ? (yield* city.applyRoadsGen(y)) : city.applyRoads(y)) {
       roadsChanged = true;
       const told = new Set();
       city.roadGroups.forEach((r, k) => {
@@ -419,7 +429,8 @@
     // 城市发展
     const acc = model.net ? model.net.acc : null;
     const econF = this.macro && CM.Macro ? CM.Macro.applyFactors(this) : null;
-    const gr = city.growMonth({ year: yr, monthIndex: this.ym(), zoneAccess: model.zoneAccessNorm, cellWalk: acc ? acc.cellWalk : null, coverage: acc ? acc.coverage : 0, econ: econF, pull: this.metroPull() });
+    const growth = { year: yr, monthIndex: this.ym(), zoneAccess: model.zoneAccessNorm, cellWalk: acc ? acc.cellWalk : null, coverage: acc ? acc.coverage : 0, econ: econF, pull: this.metroPull() };
+    const gr = this.jumping ? (yield* city.growMonthGen(growth)) : city.growMonth(growth);
     yield;
     // 交通刷新节奏（v2.6）：见 trafficDue。不刷新的月份沿用上次的出行结果（模型年份也不变，结果仍算有效），城市发展与经营照常按月结算
     this._graphsDirty = this._graphsDirty || gr.streetsChanged;
@@ -511,13 +522,16 @@
   };
   Game.prototype.jumpGen = function* (ty, tm, td, months, total) {
     let n = 0;
+    // 同月同日型复用运营报价，逐日入账的顺序和月末结算保持一致。
+    const quotes = new Map();
     const tgt = U.ymIndex(ty, tm) * 32 + td;
     while (U.ymIndex(this.clock.y, this.clock.m) * 32 + this.clock.d < tgt && !this.econ.failed) {
-      const crossed = this.endDay();
+      const crossed = this.endDay(quotes);
       n++;
       this.jumping.progress = Math.min(0.98, n / total);
       if (crossed) {
         yield* this.monthGen();
+        quotes.clear();
         // monthGen 已发布本月的两类日期结果，避免重复求解。
       }
       if ((n & 7) === 0) yield;
@@ -641,24 +655,43 @@
     if (d.compVer !== d.ver) { d.compiled = M.compile(d.net, this.city); d.compVer = d.ver; }
     return d.compiled;
   };
-  // A phase contains new track and the stations it needs. Replacements and demolitions
+  Game.prototype.draftStationEdits = function (id) {
+    const before = this.net.stations[id], after = this.draft.net.stations[id], edits = [];
+    if (!before || !after) return edits;
+    if (before.size !== after.size) edits.push('规模');
+    if (before.x !== after.x || before.y !== after.y) edits.push('位置');
+    if (before.type !== after.type || M.stationLevel(before) !== M.stationLevel(after)) edits.push('标高');
+    return edits;
+  };
+  // A phase contains selected station renovations and new track. Replacements and demolitions
   // use the full draft so their removal and reconstruction stay atomic.
   Game.prototype.draftPhase = function (ids) {
     const d = this.draft;
-    if (!d || d.liveSnap || !ids.length) return { reason: '请选择要建设的新区段' };
+    if (!d || d.liveSnap || !ids.length) return { reason: '请选择要建设的区段或车站改造' };
     const net = M.clone(this.net), plan = d.net;
     net.nextId = plan.nextId;
-    const selected = new Set(ids), stations = new Set(), lines = new Set();
+    const selected = new Set(ids), stations = new Set(), lines = new Set(), tracks = [], renovations = new Set();
     for (const id of selected) {
+      if (!this.draftStationEdits(id).length) continue;
+      const s = plan.stations[id];
+      Object.assign(net.stations[id], { size:s.size, x:s.x, y:s.y, type:s.type, elev:s.elev });
+      const station = net.stations[id];
+      station.lv = Object.fromEntries(M.stationLines(this.net, id).map(lid =>
+        [lid, M.platType(plan.lines[lid] ? s : this.net.stations[id], lid)]));
+      renovations.add(id);
+    }
+    for (const id of selected) {
+      if (renovations.has(id)) continue;
       const s = plan.segments[id];
       if (!s || net.segments[id] || (s.base && s.base.length)) return { reason: '分段建设仅支持新建轨道，改建区段请使用整份草案确认' };
       net.segments[id] = plan.segments[id];
+      tracks.push(id);
       lines.add(s.line); stations.add(s.a); stations.add(s.b);
     }
     for (const id of stations) {
       if (!net.stations[id]) net.stations[id] = plan.stations[id];
       else if (U.dist(net.stations[id].x, net.stations[id].y, plan.stations[id].x, plan.stations[id].y) > 0.0001) {
-        return { reason: '所选区段依赖草案中的移站，请先完成移站或确认整份草案' };
+        return { reason: '所选区段依赖草案中的移站，请同时勾选对应车站改造' };
       }
     }
     for (const lid of lines) {
@@ -679,14 +712,17 @@
     }
     // Isolate selected objects before normalizing so the remaining draft is untouched.
     const candidate = M.clone(net);
-    for (const id of selected) {
+    for (const id of tracks) {
       const s = candidate.segments[id];
-      for (const sid of [s.a, s.b]) M.setPlatform(candidate, sid, s.line, M.platType(plan.stations[sid], s.line));
+      for (const sid of [s.a, s.b]) {
+        const station = candidate.stations[sid];
+        (station.lv || (station.lv = {}))[s.line] = M.platType(plan.stations[sid], s.line);
+      }
     }
     M.normalizeLevels(candidate);
     const ev = M.evaluate(candidate, this.net, this.city, this.clock.y);
     if (CM.Fleet && this.fleet) CM.Fleet.draftExtra(this, ev, M.compile(candidate, this.city));
-    return { net: candidate, ev, selected, stations };
+    return { net: candidate, ev, selected, stations, tracks, renovations };
   };
   Game.prototype.draftPriceKey = function () {
     return [this.draft.ver, this.netVersion, this.clock.y, this.city.geoVer, this.city.lockVer, this.fleet?.ver || 0].join('|');
@@ -701,7 +737,10 @@
   Game.prototype.draftSegmentPrices = function () {
     const d = this.draft, key = this.draftPriceKey();
     if (d.segmentPrices?.key !== key) {
-      const ev = this.draftEval(), rows = new Map(), stations = new Map(), lines = new Map();
+      const ev = this.draftEval(), rows = new Map(), stations = new Map(), lines = new Map(), renovations = new Map();
+      for (const id of Object.keys(this.net.stations)) {
+        if (this.draftStationEdits(id).length) renovations.set(id, 0);
+      }
       const add = (map, id, row) => {
         if (!map.has(id)) map.set(id, []);
         map.get(id).push(row);
@@ -718,11 +757,12 @@
       for (const it of ev.items) {
         const row = rows.get(it.ref), stops = stations.get(it.ref), route = lines.get(it.ref);
         if (row) row.track += it.amount;
+        else if (renovations.has(it.ref)) renovations.set(it.ref, renovations.get(it.ref) + it.amount);
         else if (stops) for (const share of stops) share.station += it.amount / stops.length;
         else if (route) for (const share of route) share.fleet += it.amount / route.length;
         else other += it.amount;
       }
-      d.segmentPrices = { key, rows, other, total:ev.total };
+      d.segmentPrices = { key, rows, renovations, other, total:ev.total };
     }
     return d.segmentPrices;
   };
@@ -732,6 +772,15 @@
     if (!ev) return { ok: false, reason: '没有草案' };
     if (this.draft.liveSnap) return { ok: false, reason: '请先松开鼠标或结束当前拖动，再确认建设' };
     if (!ev.changed) return { ok: false, reason: '草案没有变化' };
+    if (CM.Fleet) {
+      const net = (phase || this.draft).net;
+      for (const s of Object.values(net.segments)) {
+        const speed = M.segmentGrade(net, s).kmh, old = this.net.segments[s.id];
+        if (old && speed === M.segmentGrade(this.net, old).kmh) continue;
+        const access = CM.Fleet.speedOpen(this, speed);
+        if (!access.ok) return { ok:false, reason:net.lines[s.line].name + ' 的 ' + speed + ' km/h 档需要 ' + access.required + ' km 已运营线网' };
+      }
+    }
     if (ev.conflicts.length) return { ok: false, reason: '存在 ' + ev.conflicts.length + ' 处冲突，需先解决' };
     if (!this.econ.canAffordBuild(ev.total)) return { ok: false, reason: '资金不足：需要 ' + U.fmtMoney(ev.total) + '，当前一般资金 ' + U.fmtMoney(this.econ.funds) + (this.econ.capex > 0.5 ? ' + 建设专项资金 ' + U.fmtMoney(this.econ.capex) : '') };
     if (this.jumping || this.pending) return { ok: false, reason: '正在结算，请稍候' };
@@ -780,6 +829,7 @@
       for (const id in off.lines) if (!d.net.lines[id]) { keepLine(id); any = true; }
       if (any) this.netGone = gone; }
     const netBefore = this.net;
+    if (CM.Fleet) CM.Fleet.speedProgress(this);
     this.net = d.net;
     for (const lid of Object.keys(this.net.lines)) {
       if (this.net.lines[lid].phased && M.lineTopo(this.net, lid).topo !== 'phased') delete this.net.lines[lid].phased;
@@ -787,6 +837,7 @@
     this.netVersion++;
     this.rev++;
     this.compiled = M.compile(this.net, this.city);
+    if (CM.Fleet) CM.Fleet.speedProgress(this);
     if (CM.Fleet && this.fleet) { CM.Fleet.applyAdd(this, ev.fleetAdd); CM.Fleet.sync(this); this.fleet.ver++; }   // 随线配车落实；拆除线路的列车回到车辆段
     if (CM.OpsAlerts) { try { CM.OpsAlerts.restructure(this, netBefore); } catch (e) { console.error(e); } }   // 贯通、拆开后地铁芯的历史记录跟着调整（只影响显示）
     this.model.cancelPredict();
@@ -801,7 +852,11 @@
         const segment = this.net.segments[id];
         if (segment && segment.lh) remainder.segments[id].lh = M.clone(segment.lh);
       }
-      for (const id of phase.selected) remainder.segments[id] = M.clone(this.net.segments[id]);
+      for (const id of phase.tracks) remainder.segments[id] = M.clone(this.net.segments[id]);
+      for (const id of Object.keys(ev.paidLen || {})) {
+        if (remainder.segments[id]) remainder.segments[id].paidLen = this.net.segments[id].paidLen;
+      }
+      for (const id of phase.renovations) remainder.stations[id].site = this.net.stations[id].site;
       for (const id of phase.stations) if (!beforeNet.stations[id]) {
         const s = this.net.stations[id];
         Object.assign(remainder.stations[id], { built: s.built, site: s.site });
@@ -862,6 +917,19 @@
   };
 
   // ---------------- 查询 ----------------
+  // 人口加权中心可能在海湾里。地图标记落在同一小区内的开放陆地上，统计仍使用原小区。
+  Game.prototype.zonePin = function (z) {
+    const city = this.city, model = this.model;
+    const x = model.zCx[z], y = model.zCy[z];
+    let best = null, distance = Infinity;
+    for (const c of model.zoneCells[z] || []) {
+      if (city.landFrac[c] < 0.75 || city.cellLocked(c) || city.regions[city.region[c]]?.scenic) continue;
+      const cx = c % city.W + 0.5, cy = Math.floor(c / city.W) + 0.5;
+      const score = (cx - x) ** 2 + (cy - y) ** 2;
+      if (score < distance) { best = [cx, cy]; distance = score; }
+    }
+    return best;
+  };
   Game.prototype.zoneName = function (z, acceptPlace) {
     const m = this.model;
     const x = m.zCx[z], y = m.zCy[z];
@@ -964,6 +1032,7 @@
 
   // ---------------- 存档 ----------------
   Game.prototype.serialize = function () {
+    if (CM.Fleet) CM.Fleet.speedProgress(this);
     return {
       meta: { gameId: this.id, name: this.name, mode: this.mode, seed: this.seed, createdAt: this.createdAt, gameVersion: CFG.GAME_VERSION, map: this.mapId || 'gz', mapVersion: (CM.MAPS[this.mapId || 'gz'] || {}).mapVersion || 1, scenario: (CM.MAPS[this.mapId || 'gz'] || {}).scenario || '', mapFp: (CM.MAPS[this.mapId || 'gz'] || {}).fp || '' },
       clock: Object.assign({}, this.clock),
@@ -973,6 +1042,8 @@
       tasks: this.tasks.serialize(),
       corp: this.corp || undefined,   // 地铁公司的政府合同：招标、履约中与已结束的合同、履约信誉（v2.5）
       fleet: this.fleet || undefined,   // 车队：列车（车型、编组、购置年月与价格、配属线路与交路）与各线运营模式（v2.5）
+      speedPeakKm: this.speedPeakKm || undefined,
+      speedUnlocked: this.speedUnlocked || undefined,
       opsNote: this.opsNote || undefined,   // 地铁芯的过载提醒：持续月数与静默期（v2.5）
       events: this.events.slice(-300),
       history: this.history.slice(-1200),
@@ -1035,6 +1106,8 @@
       g.tasks = CM.Tasks.restore(s.tasks);
       g.corp = s.corp && Array.isArray(s.corp.contracts) ? s.corp : null;
       g.fleet = s.fleet && Array.isArray(s.fleet.trains) ? s.fleet : null;
+      g.speedPeakKm = s.speedPeakKm || 0;
+      g.speedUnlocked = s.speedUnlocked || 80;
       if (g.fleet && CM.Fleet) g.model.fleetSource = function (net) { return CM.Fleet.plan(g, net); };
       g.opsNote = s.opsNote || null;
       g.trafficChangedYm = s.trafficChangedYm ?? null;

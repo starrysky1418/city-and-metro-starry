@@ -55,6 +55,12 @@
   };
   const at = name => positions.get(name);
   const box = ([w, s, e, n]) => [point(w, n), point(e, n), point(e, s), point(w, s)];
+  // scenic 片区用不规则轮廓：box() 的四条直角边会被整块涂成山体色，在地图上形成突兀的长方形。
+  const blob = ([w, s, e, n]) => {
+    const dx = e - w, dy = n - s, q = (u, v) => point(w + u * dx, s + v * dy);
+    return [q(0.10, 0.96), q(0.38, 1.00), q(0.72, 0.94), q(0.96, 0.78), q(1.00, 0.48),
+      q(0.90, 0.16), q(0.62, 0.02), q(0.28, 0.06), q(0.02, 0.34), q(0.06, 0.68)];
+  };
   const zone = (id, name, plan, pop, open, bounds) => ({ id, name, plan, pop, open, poly: box(bounds) });
   const landmark = (id, name, kind, year, w, d, h) => ({ id, ...where(name), kind, year, w, d, h });
   const task = (id, from, by, title, stops, reward) => ({
@@ -103,8 +109,8 @@
       ],
     },
     regions: [
-      { id: 'dldh', name: '东丽湖湿地', scenic: true, open: null, relief: 60, poly: box([117.42, 39.15, 117.50, 39.22]) },
-      { id: 'sjgy', name: '水上公园与侯台湿地', scenic: true, open: null, relief: 40, poly: box([117.15, 39.07, 117.18, 39.10]) },
+      { id: 'dldh', name: '东丽湖湿地', scenic: true, open: null, relief: 60, poly: blob([117.42, 39.15, 117.50, 39.22]) },
+      { id: 'sjgy', name: '水上公园与侯台湿地', scenic: true, open: null, relief: 40, poly: blob([117.15, 39.07, 117.18, 39.10]) },
       zone('zhongshanmen', '中山门与一号桥', 'mix', 360000, 2004, [117.24, 39.08, 117.29, 39.13]),
       zone('donghailu', '东海路与滨海东区', 'mix', 280000, 2004, [117.70, 39.00, 117.76, 39.06]),
       zone('laocheng', '老城厢与鼓楼', 'mix', 620000, 2004, [117.14, 39.12, 117.19, 39.16]),

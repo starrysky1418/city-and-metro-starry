@@ -566,7 +566,7 @@
     g.on('fleet', function () { const top = self.stack[self.stack.length - 1]; if (top && (top.kind === 'line' || top.kind === 'fleet')) self.rerenderPage(); else if (self.opsApp) self.opsApp.refresh(); });
     g.on('draft', function () { self.lastDraftChange = performance.now(); self.tools.syncDraft(); self.syncSelection(); self.renderDraftbar(); self.renderToolOpts(); self.refreshObjectPage(); if (self.opsApp) self.opsApp.refresh(); });
     g.on('draftLive', function () { self.lastDraftChange = performance.now(); });
-    g.on('prediction', function () { self.refreshPrediction(); self.renderDraftbar(); });
+    g.on('prediction', function () { if (!g.jumping) { self.refreshPrediction(); self.renderDraftbar(); } });
     g.on('network', function () { self.markUnsaved(); self.rerenderPage(); });
     g.on('tasksUpdated', function () { self.markUnsaved(); if (self.stack.length) self.rerenderPage(); });
     g.on('trafficImpact', function () { self.markUnsaved(); if (self.stack.length) self.rerenderPage(); if (CM.Tutorial && CM.Tutorial.onImpact && CM.Tutorial.onImpact()) return; self.toast('本次建设的效果报告已生成', 'info', { label: '查看报告', fn: function () { self.openPage('impact', null, { root: true }); } }); });
@@ -578,7 +578,7 @@
     g.on('failed', function (f) { snd('fail'); if (!g.jumping) self.showFailure(f); });
     g.on('jump', function () { snd('whoosh'); self.showJump(); });
     g.on('jumpProgress', function (p) { self.updateJump(p); });
-    g.on('jumpDone', function (r) { snd('chime'); self.rerenderPage(); self.showJumpResult(r); self.scheduleAutosave(); if (r.failed) self.showFailure(r.failed); });
+    g.on('jumpDone', function (r) { snd('chime'); self.renderDraftbar(); self.rerenderPage(); self.showJumpResult(r); self.scheduleAutosave(); if (r.failed) self.showFailure(r.failed); });
     g.on('speed', function () { self.renderToolbar(); });
     // 里程碑：消息提示；重大节点弹出庆祝横幅（跳月 / 跳年期间只记录）
     // 乘客之声：每月结算与建设效果更新后重新生成反馈（结果按月份与线网缓存）
@@ -610,6 +610,7 @@
   // ======================== 每帧 ========================
   UI.prototype.tick = function (dt, force) {
     const g = this.g(); if (!g) return;
+    if (g.jumping) return;   // 进度条由 jumpProgress 更新，结算后统一刷新地图界面。
     if (CM.Quick) CM.Quick.tick();
     if (this._celebrationActive || this._celebrationQueue.length) {
       if (this.celebrationBlocked()) {
@@ -1191,7 +1192,7 @@
       // 运行速度（v2.5）：新线路在这里选；延长既有线路时沿用该线的速度（在线路详情「列车运营」中调整）
       const speedCtl = grp('速度', colorLine
         ? h('span', { class: 'tag', 'data-tip': '本线最小转弯半径 ' + M.minRadius(colorLine) + ' m；可在线路详情「列车运营」中调整' }, M.lineKmh(colorLine) + ' km/h')
-        : segc(T.newLineSpeed || 80, mc.speedGrades.filter(function (x) { return !CM.Fleet || CM.Fleet.speedOpen(g.mapId, y, x.kmh).ok; }).map(function (x) { return [x.kmh, String(x.kmh), x.kmh + ' km/h：最小转弯半径 ' + x.minR + ' m，运营成本 ×' + x.ops.toFixed(2)]; }), function (v) { T.newLineSpeed = v; }));
+        : segc(T.newLineSpeed || 80, mc.speedGrades.filter(function (x) { return !CM.Fleet || CM.Fleet.speedOpen(g, x.kmh).ok; }).map(function (x) { return [x.kmh, String(x.kmh), x.kmh + ' km/h：最小转弯半径 ' + x.minR + ' m，运营成本 ×' + x.ops.toFixed(2)]; }), function (v) { T.newLineSpeed = v; }));
       el.append(colorGroup, h('span', { class: 'to-sep' }), typeCtl, sizeCtl('新站'), curveCtl, speedCtl);
       if (T.chain) el.appendChild(h('button', { class:'btn sm' + (T.placingTransition ? ' primary' : ''), 'data-tip':'先选起始方式，点击地图放置坡道起点，再选择后半段方式和下一站。',
         onclick: function () {
@@ -1827,8 +1828,12 @@
       self.rerenderPage();
     };
     input.addEventListener('keydown', function (e) { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } });
-    input.addEventListener('blur', function () { finish(true); });
-    t.textContent = ''; t.appendChild(input); input.focus(); input.select();
+    const options = spec.options ? UI.stationNameButtons(spec.options(), function (name) { input.value = name; finish(true); }) : null;
+    const editor = h('div', { class: 'p-title-editor' }, input, options);
+    editor.addEventListener('focusout', function (e) { if (!editor.contains(e.relatedTarget)) finish(true); });
+    t.textContent = ''; t.appendChild(editor);
+    if (CM.I18n) CM.I18n.localize(editor);
+    input.focus(); input.select();
   };
   // 打开车站或线路详情的指定分页（概况 info / 建设 build）
   UI.prototype.openObj = function (kind, id, tab) {
@@ -1958,10 +1963,17 @@
       groups.get(s.line).push(s);
       available.add(s.id);
     }
+    const renovations = [];
+    for (const s of Object.values(plan.stations)) {
+      const edits = g.draftStationEdits(s.id);
+      if (!edits.length) continue;
+      renovations.push({ id:s.id, label:s.name + ' · ' + edits.join('、') });
+      available.add(s.id);
+    }
     const selection = new Set((d.phaseIds || []).filter(id => available.has(id)));
     d.phaseIds = Array.from(selection);
-    if (!groups.size) return null;
-    return this.sec('dr-phases', '分段建设', groups.size + ' 条线路', function () {
+    if (!available.size) return null;
+    return this.sec('dr-phases', '分段建设', available.size + ' 项', function () {
       const prices = new Map();
       const box = h('div', null, h('p', { class: 'note' }, '可从线路两端分别勾选建设，接通前各段独立运营。单段报价按整份草案分摊车站和列车费用，本期总价按实际建设单独计算。'));
       for (const [lid, segs] of groups) {
@@ -1994,24 +2006,44 @@
         });
         box.appendChild(h('details', { open: groups.size === 1 || segs.some(s => selection.has(s.id)) }, h('summary', null, plan.lines[lid].name + ' · ' + segs.length + ' 段'), h('label', { class: 'row small' }, master, '全选本线路'), rows));
       }
+      if (renovations.length) {
+        const rows = h('details', { open:true }, h('summary', null, '车站改造 · ' + renovations.length + ' 项'));
+        for (const { id, label } of renovations) {
+          const input = h('input', { type:'checkbox', checked:selection.has(id) });
+          input.addEventListener('change', function () {
+            if (input.checked) selection.add(id); else selection.delete(id);
+            updateSelection();
+          });
+          const price = h('span', { class:'num muted', title:'车站本体费用，关联区间费用计入本期报价' });
+          prices.set(id, price);
+          rows.appendChild(h('label', { class:'row small' }, input, h('span', { class:'grow' }, label), price));
+        }
+        box.appendChild(rows);
+      }
       const status = h('p', { class: 'note', role: 'status' });
       const reconciliation = h('p', { class: 'small muted' });
       let phase, lastPrices;
       const build = h('button', { class: 'btn sm primary', disabled: true, onclick: function () {
         self.confirmDraft(d.phaseIds, phase?.ev?.total);
         refresh();
-      } }, '建设所选区段');
+      } }, '确认所选建设');
       const refresh = function () {
         if (g.draft !== d) return;
         const amounts = g.draftSegmentPrices();
         if (amounts !== lastPrices) {
           for (const [id, el] of prices) {
+            if (amounts.renovations.has(id)) {
+              el.textContent = U.fmtMoney(amounts.renovations.get(id));
+              continue;
+            }
             const row = amounts.rows.get(id);
             if (!row) continue;
             el.textContent = U.fmtMoney(row.track + row.station + row.fleet);
             el.title = '轨道 ' + U.fmtMoney(row.track) + ' · 车站 ' + U.fmtMoney(row.station) + ' · 列车 ' + U.fmtMoney(row.fleet);
           }
-          reconciliation.textContent = '区段合计 ' + U.fmtMoney(amounts.total - amounts.other) +
+          const stationCost = Array.from(amounts.renovations.values()).reduce((sum, cost) => sum + cost, 0);
+          reconciliation.textContent = '区段合计 ' + U.fmtMoney(amounts.total - amounts.other - stationCost) +
+            (renovations.length ? ' + 车站改造 ' + U.fmtMoney(stationCost) : '') +
             (amounts.other ? ' + 其他改动 ' + U.fmtMoney(amounts.other) : '') + ' · 整份草案 ' + U.fmtMoney(amounts.total);
           lastPrices = amounts;
         }

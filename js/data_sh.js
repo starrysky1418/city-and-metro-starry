@@ -260,6 +260,11 @@
       '北翟高架路': 2015, '嘉闵高架路': 2014, '虹梅高架路': 2014, '崧泽高架路': 2015, '度假区高架路': 2016, '五洲大道': 2011, '世博大道': 2010,
     },
     bridgeYears: {}, bridgeDefaultYear: 1990,
+    // 旧镇街路和校区接驳独立于大片住宅区的开发年份。范围为模拟近似。
+    localRoadStarts: [
+      at(31.1110, 121.3850, { year: 1990, radius: 6 }),
+      at(31.3160, 121.3920, { year: 1999, radius: 4 }),
+    ],
     simRoads: [],
     landmarks: [
       Object.assign(atW(31.2395, 121.4850), { id: 'sh_bund', name: '外滩建筑群', w: 1200, d: 50, rot: -96, year: 1937, kind: 'bund' }),
@@ -502,7 +507,7 @@
     var fs = data.facilities, drop = {'sh_gt':1,'sh_rmgy':1,'sh_renji':1,'sh_bund':1,'sh_bundv':1,'sh_icc':1,'sh_ljz':1,'sh_pearl':1,'sh_yy':1,'sh_njxc':1,'sh_mbcc':1,'sh_tzf':1,'sh_hongkou':1,'sh_expoctr':1};
     for (var i = fs.length - 1; i >= 0; i--) if (drop[fs[i].id]) fs.splice(i, 1);
     var upd = {
-      'sh_museum': { w: 0.034, note: "市中心热点合并：含 上海大剧院、人民公园（需求并入本设施，位置以本设施为准）" },
+      'sh_museum': { w: 0.022, note: '上海博物馆与上海大剧院的参观和演出需求。' },
       'sh_njd': { w: 0.096, note: "市中心热点合并：含 仁济医院、外滩金融区、外滩（需求并入本设施，位置以本设施为准）" },
       'sh_zd': { w: 0.058, note: "市中心热点合并：含 上海国际会议中心、陆家嘴金融贸易区、东方明珠（需求并入本设施，位置以本设施为准）" },
       'sh_yuyuan': { w: 0.054, note: "市中心热点合并：含 豫园（需求并入本设施，位置以本设施为准）" },

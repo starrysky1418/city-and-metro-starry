@@ -1,3 +1,3 @@
 'use strict';
 // Generated from this web edition's simulation inputs.
-window.CM.SIM_STAMP = '7bf2a687a79889af42bbe0b47e07ad4aaabc2eb22ce0c8fd70f3e2ffc9fe3b46';
+window.CM.SIM_STAMP = '2427501fb69b0fc86c005f304eeacb8498c09e6d5b18bb7a9c1158540371b024';

@@ -7,6 +7,7 @@
   CM.LU_NAME = ['农村/待开发', '住宅', '商业办公', '工业仓储', '混合功能', '公园绿地', '学校与机构', '水域', '山地风景区', '机场', '历史地标'];
   const PLAN_KEYS = { RES: LU.RES, COM: LU.COM, IND: LU.IND, MIX: LU.MIX, INST: LU.INST };
   const CELL_KM2 = 0.0625;
+  const development = function (year, opened) { return U.clamp((year - opened) / 12, 0, 1); };
 
   let CITY_SEQ = 0;
   function City() {
@@ -83,6 +84,10 @@
 
     // 1990 年人口与就业（估算）
     let sumP = 0, sumJ = 0;
+    const density = this.regions.map(function (r) {
+      const d = r.demography;
+      return d ? U.lerp(d.initial, d.mature, development(startYear, r.open)) : 1;
+    });
     for (let c = 0; c < N; c++) {
       if ((c & 4095) === 4095) yield;
       const L = this.lu[c];
@@ -96,8 +101,9 @@
       }
       p *= 0.7 + 0.6 * U.fbm(cx * 0.3, cy * 0.3, seed + 3);
       jb *= 0.65 + 0.7 * U.hash2(i, j, seed + 5);
-      // 林地与未开放区域人口较少
-      p *= 1 - 0.6 * this.wood[c]; jb *= 1 - 0.6 * this.wood[c];
+      // 林地与尚未成熟的扩图片区人口较少。
+      const densityScale = (1 - 0.6 * this.wood[c]) * density[this.region[c]];
+      p *= densityScale; jb *= densityScale;
       const urban = (p + jb) * ds > 2600;
       if (urban && L !== LU.LANDMARK) {
         this.lu[c] = this.plan[c];
@@ -936,6 +942,9 @@
       const c = self.cellAt(p[m], p[m + 1]);
       const rg = c >= 0 ? self.regions[self.region[c]] : D.defaultRegion;
       g.year = rg.scenic || rg.open == null ? CFG.START.y : Math.max(CFG.START.y, rg.open);
+      if (g.cls < 4 && !g.flags) for (const site of D.localRoadStarts || []) {
+        if (U.dist(p[m], p[m + 1], site.x, site.y) <= site.radius) g.year = Math.min(g.year, site.year);
+      }
     }
     // 填海土地上的道路：不早于该处填海成陆的年份（道路有三成以上的点在填海范围内，或桥梁接到填海土地上）
     // 按平滑后的实际填海范围（reclaimGeom）判断，旧陆地上的道路不受多边形近似范围的影响
@@ -1453,6 +1462,12 @@
   // econ（城市经济，可空）：popGrowth 人口增速系数、jobs 就业水平系数、com 商业发展系数。只调整增速与就业水平，
   // 长期人口仍回到本城的人口曲线；地铁覆盖对人口的吸引（boost）不经过经济系数，避免重复计算
   City.prototype.growMonth = function (ctx) {
+    const work = this.growMonthGen(ctx);
+    let step = work.next();
+    while (!step.done) step = work.next();
+    return step.value;
+  };
+  City.prototype.growMonthGen = function* (ctx) {
     const N = this.N, W = this.W, year = ctx.year;
     const tot = this.totals();
     const E = ctx.econ || null, egp = E ? E.popGrowth : 1, ejf = E ? E.jobs : 1, ecom = E ? E.com : 1;
@@ -1471,6 +1486,7 @@
     if (EF) {
       let mJ = 0, mP = 0;
       for (let c = 0; c < N; c++) {
+        if (c && (c & 4095) === 0) yield;
         const k = this.region[c], rj = EF.relocJ[k], rp = EF.relocP[k];
         if (rj > 0 && this.jobs[c] > 0) { const v = this.jobs[c] * rj; this.jobs[c] -= v; mJ += v; }
         if (rp > 0 && this.pop[c] > 0) { const v = this.pop[c] * rp; this.pop[c] -= v; mP += v; }
@@ -1481,12 +1497,20 @@
     // 车站周边可容纳的人口与岗位随之提高。只改变增长落在哪里，全城总量仍按人口曲线
     const PL = ctx.pull || null, GL = CFG.metroLed, pw = PL ? PL.w : 0, flat = PL ? 1 - GL.flatten * PL.M : 1;
     const wR = new Float32Array(N), wJ = new Float32Array(N), capR = new Float32Array(N), capJ = new Float32Array(N);
+    const growth = this.regions.map(function (r, k) {
+      const d = r.demography, date = this.regionOpenDate[k];
+      if (!d) return 1;
+      const opened = date ? date[0] + (date[1] - 1) / 12 : r.open;
+      return U.lerp(d.early, d.mature, development(year, opened));
+    }, this);
     let sR = 0, sJ = 0;
     const mi = ctx.monthIndex;
     for (let c = 0; c < N; c++) {
+      if (c && (c & 4095) === 0) yield;
       const L = this.lu[c];
       if (L === LU.WATER || L === LU.HILL || L === LU.PARK || L === LU.AIRPORT || L === LU.LANDMARK) continue;
       if (!this.regionOpen[this.region[c]]) continue;
+      const regionalGrowth = growth[this.region[c]];
       const lf = this.landFrac[c] * (1 - this.taken[c]);
       if (lf <= 0.05) continue;
       const P = L === LU.RURAL ? this.plan[c] : L;
@@ -1512,23 +1536,27 @@
       const rnd = 0.6 + 0.8 * U.hash2(c, mi, this.seed + 31);
       const remR = cr - this.pop[c], remJ = cj - this.jobs[c];
       const kR = EF ? Math.pow(EF.pop[this.region[c]], flat) : 1, kJ = EF ? Math.pow(EF.jobs[this.region[c]], flat) : 1;
-      if (remR > 0) { wR[c] = remR * (0.25 + acc) * (1 + 1.6 * st) * (0.3 + nb) * rnd * seed * kR * (1 + GL.res * pw * pf); sR += wR[c]; }
+      if (remR > 0) { wR[c] = remR * (0.25 + acc) * (1 + 1.6 * st) * (0.3 + nb) * rnd * seed * kR * regionalGrowth * (1 + GL.res * pw * pf); sR += wR[c]; }
       if (remJ > 0) {
         const comBoost = (P === LU.COM || P === LU.MIX) ? 2.0 * ecom : 1;
-        wJ[c] = remJ * (0.2 + acc * 1.2) * (1 + 1.6 * st * comBoost) * (0.3 + nb) * rnd * seed * kJ * (1 + GL.jobs * pw * pf * (comBoost > 1 ? 1.3 : 1)); sJ += wJ[c];
+        wJ[c] = remJ * (0.2 + acc * 1.2) * (1 + 1.6 * st * comBoost) * (0.3 + nb) * rnd * seed * kJ * regionalGrowth * (1 + GL.jobs * pw * pf * (comBoost > 1 ? 1.3 : 1)); sJ += wJ[c];
       }
     }
-    const changed = [];
-    const add = (arr, cap, w, s, d) => {
+    const changed = [], seen = new Uint8Array(N);
+    const add = function* (arr, cap, w, s, d) {
       if (d > 0 && s > 0) {
         let left = d;
         for (let pass = 0; pass < 2 && left > 1; pass++) {
           const k = left / s; let used = 0, s2 = 0;
           for (let c = 0; c < N; c++) {
+            if (c && (c & 4095) === 0) yield;
             if (w[c] <= 0) continue;
             const room = cap[c] - arr[c];
             const inc = Math.min(room, w[c] * k, Math.max(60, cap[c] * 0.05));
-            if (inc > 0) { arr[c] += inc; used += inc; changed.push(c); }
+            if (inc > 0) {
+              arr[c] += inc; used += inc;
+              if (!seen[c]) { seen[c] = 1; changed.push(c); }
+            }
             if (cap[c] - arr[c] > 1) s2 += w[c]; else w[c] = 0;
           }
           left -= used; s = s2;
@@ -1540,15 +1568,15 @@
         for (let c = 0; c < N; c++) arr[c] *= f;
       }
     };
-    add(this.pop, capR, wR, sR, dP);
-    add(this.jobs, capJ, wJ, sJ, dJ);
+    yield* add(this.pop, capR, wR, sR, dP);
+    yield* add(this.jobs, capJ, wJ, sJ, dJ);
     let newUrban = 0, streetsChanged = false;
-    const seen = new Set();
     // 工地（只用于画面上的塔吊，不参与模拟、不存档）：新城市化或明显加高的街区，记录开工月份
     const sites = this.sites || (this.sites = new Map());
     for (const [c, m0] of sites) if (mi - m0 > 24) sites.delete(c);
-    for (const c of changed) {
-      if (seen.has(c)) continue; seen.add(c);
+    for (let i = 0; i < changed.length; i++) {
+      if (i && (i & 4095) === 0) yield;
+      const c = changed[i];
       if (!this.street[c] && this.pop[c] + this.jobs[c] > 160) {
         this.street[c] = 1; this.urbanYear[c] = Math.floor(year);
         if (this.lu[c] === LU.RURAL) this.lu[c] = this.plan[c] === LU.PARK ? LU.RES : this.plan[c];

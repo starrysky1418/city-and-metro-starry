@@ -4211,7 +4211,7 @@
       if (t.anchors) for (const a of t.anchors) add(a.x, a.y, a.name);
       else if (t.station && net.stations[t.station]) add(net.stations[t.station].x, net.stations[t.station].y, net.stations[t.station].name);
       else if (t.fac) { const f = CM.Fac.byId(t.fac); if (f) add(f.x, f.y, f.name); }
-      else if (t.zone !== undefined) add(g.model.zCx[t.zone], g.model.zCy[t.zone]);
+      else if (t.zone !== undefined) { const pin = g.zonePin(t.zone); if (pin) add(pin[0], pin[1]); }
       else if (t.line && net.lines[t.line]) { const list = CM.Metro.lineTopo(net, t.line).stations, s = net.stations[list[list.length >> 1]]; if (s) add(s.x, s.y, net.lines[t.line].name); }
     }
     return out;

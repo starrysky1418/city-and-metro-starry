@@ -43,6 +43,7 @@
     M({ id: 'gen-a', name: '大运量 A 型车', short: 'A 型车', from: 1985, to: 9999, cap: 310, price: 420, ops: 0.96, kmh: 80, look: 'white', desc: '车宽 3 m、每节 5 对车门的大运量车' }),
     M({ id: 'gen-eco', name: '节能变频车', short: '节能车', from: 2008, to: 9999, cap: 300, price: 460, ops: 0.85, kmh: 100, look: 'paint', desc: '永磁电机与再生制动，运营费用低' }),
     M({ id: 'gen-auto', name: '全自动无人驾驶车', short: '无人驾驶车', from: 2025, to: 9999, cap: 320, price: 540, ops: 0.75, kmh: 120, look: 'future', desc: '无人驾驶、贯通客室，运营费用最低' }),
+    M({ id: 'gen-regional', name: '160 km/h 市域快线车', short: '市域快线车', from: 2021, to: 9999, cap: 300, price: 680, ops: 1.05, kmh: 160, look: 'whiteNew', desc: '适合大站距的市域快线' }),
     // 广州
     M({ id: 'gz-a1', maps: ['gz'], name: '广州地铁 A1 型（西门子）', short: 'A1 型', from: 1995, to: 2004, cap: 310, price: 560, ops: 0.97, max: 6, look: 'white', desc: '1 号线引进车，白色车身配线路色带' }),
     M({ id: 'gz-l4', maps: ['gz'], name: '广州地铁直线电机 L4 型', short: 'L4 型', from: 2005, to: 2016, cap: 240, price: 420, ops: 0.93, max: 6, kmh: 90, look: 'paint', desc: '4、5 号线直线电机车，爬坡与过弯能力强' }),
@@ -97,31 +98,67 @@
   const BY = new Map(MODELS.map(function (m) { return [m.id, m]; }));
   F.model = function (id) { return BY.get(id) || BY.get('gen-a'); };
   // 本城当年可以买的车型（本城真实车型在前）
-  F.available = function (mapId, y) {
-    return MODELS.filter(function (m) { return y >= m.from && y <= m.to && (!m.maps || m.maps.indexOf(mapId) >= 0); }).sort(function (a, b) { return (a.maps ? 0 : 1) - (b.maps ? 0 : 1) || b.from - a.from; });
+  const speedKm = { 100: 100, 120: 300, 160: 500 };
+  const compactKm = { 100: 60, 120: 150, 160: 250 };
+  const tutorialKm = { 100: 15, 120: 35, 160: 60 };
+  F.speedProgress = function (g) {
+    const C = g.compiled;
+    if (g._speedProgress && g._speedProgress.compiled === C) return g._speedProgress;
+    const tracks = new Set(), metro = CM.Metro;
+    let metres = 0, existing = 80;
+    for (const route of C?.routes || []) {
+      existing = Math.max(existing, route.kmh);
+      for (const leg of route.legSegs) for (const ref of leg) {
+        const track = C.segs.get(ref.id);
+        const key = metro.trackKey(track.seg);
+        if (!tracks.has(key)) { tracks.add(key); metres += track.g.lenM; }
+      }
+    }
+    g.speedPeakKm = Math.max(g.speedPeakKm || 0, metres / 1000);
+    g.speedUnlocked = Math.max(g.speedUnlocked || 80, existing);
+    return g._speedProgress = { compiled:C, km:metres / 1000 };
+  };
+  F.speedOpen = function (g, kmh) {
+    if (kmh <= 80) return { ok:true };
+    const { km } = F.speedProgress(g);
+    const tiers = g.mapId === 'tutorial' ? tutorialKm : ['hk','sg','tp'].includes(g.mapId) ? compactKm : speedKm;
+    const required = tiers[kmh];
+    return { ok:!!required && (g.speedUnlocked >= kmh || g.speedPeakKm >= required), km, required };
+  };
+  const speedHint = function (open) {
+    return '运营里程 ' + U.fmtNum(open.km, 1) + ' / ' + open.required + ' km 解锁';
+  };
+  const yearAvailable = function (m, mapId, y) {
+    return y >= m.from && y <= m.to && (!m.maps || m.maps.includes(mapId));
+  };
+  const available = function (m, mapId, y, g) {
+    if (g && m.kmh > 80 && !F.speedOpen(g, m.kmh).ok) return false;
+    return yearAvailable(m, mapId, y) || !!(g && !m.maps && m.kmh > 80);
+  };
+  F.available = function (mapId, y, g) {
+    return MODELS.filter(m => available(m, mapId, y, g)).sort(function (a, b) { return (a.maps ? 0 : 1) - (b.maps ? 0 : 1) || b.from - a.from; });
   };
   // 本城以后才开放的车型（按开放年份，同年本城车型在前）：购车界面与车队总览提前展示
-  F.upcoming = function (mapId, y) {
-    return MODELS.filter(function (m) { return m.from > y && (!m.maps || m.maps.indexOf(mapId) >= 0); }).sort(function (a, b) { return a.from - b.from || (a.maps ? 0 : 1) - (b.maps ? 0 : 1); });
+  F.upcoming = function (mapId, y, g) {
+    return MODELS.filter(m => (!m.maps || m.maps.includes(mapId)) && y <= m.to &&
+      !available(m, mapId, y, g) && (m.from > y || (g && m.kmh > 80)))
+      .sort(function (a, b) { return a.from - b.from || (a.maps ? 0 : 1) - (b.maps ? 0 : 1); });
   };
   // 推荐车型（随线配车用）：本城当年最新的真实车型，没有则用通用车型里最新的
   // need：线路运行速度超过 80 km/h 时，车型的最高速度不能低于它（v2.5）
-  F.recommend = function (mapId, y, need) {
-    const a = F.available(mapId, y);
-    if (need > 80) { const fast = a.filter(function (m) { return m.kmh >= need; }); if (fast.length) return fast[0]; }
-    return a[0] || BY.get('gen-early');
-  };
-  // 线路运行速度能否选用：80 km/h 及以下不限车型；更高的速度要当年买得到足够快的车型，否则给出最早开放的年份
-  F.speedOpen = function (mapId, y, kmh) {
-    if (kmh <= 80 || F.available(mapId, y).some(function (m) { return m.kmh >= kmh; })) return { ok: true };
-    const later = F.upcoming(mapId, y).filter(function (m) { return m.kmh >= kmh; });
-    return { ok: false, year: later.length ? later[0].from : null };
+  F.recommend = function (mapId, y, need, g) {
+    const a = F.available(mapId, y, g);
+    if (need > 80) {
+      const fast = a.filter(m => m.kmh >= need).sort((a, b) => a.kmh - b.kmh);
+      if (fast.length) return fast[0];
+    }
+    return a.find(m => m.kmh < 160 && (m.kmh <= 80 || yearAvailable(m, mapId, y))) || BY.get('gen-early');
   };
   // 列车能否在这条路线上运行：编组不超过站台，最高速度不低于线路运行速度（只对高于 80 km/h 的线路要求）
   const tooSlow = function (t, rt) { return rt.kmh > 80 && F.model(t.model).kmh < rt.kmh; };
   // 某年代的车型（旧存档与开局既有线路的车队）：当年可买的推荐车型；早于所有车型时取最早的通用车
   F.eraModel = function (mapId, y) {
-    const a = F.available(mapId, y); if (a.length) return a[0];
+    const a = F.available(mapId, y).filter(m => m.kmh < 160); if (a.length) return a[0];
     const own = MODELS.filter(function (m) { return (!m.maps || m.maps.indexOf(mapId) >= 0) && m.from <= y; }).sort(function (a, b) { return b.from - a.from; });
     return own[0] || BY.get('gen-early');
   };
@@ -130,6 +167,7 @@
   F.price = function (g, m, cars, y) { return m.price * cars * scale() * g.econ.costIndex(y || g.clock.y); };
   const ageY = function (g, t) { return Math.max(0, (g.ym() - (t.bought || g.ym())) / 12); };
   F.age = ageY;
+  F.overAge = (g, t) => ageY(g, t) > F.model(t.model).life;
   // 残值：买价的 75% 起，按设计寿命直线折旧，最低 8%（买了马上卖也要损失约四分之一）
   F.residual = function (g, t) { const m = F.model(t.model); return (t.cost || 0) * Math.max(0.08, 0.75 * (1 - ageY(g, t) / m.life)); };
   F.opsF = function (g, t) { const m = F.model(t.model); return m.ops * (ageY(g, t) > m.life ? 1.25 : 1); };
@@ -185,7 +223,7 @@
       }
       if (nd === 1) { fp.avail[1] = fp.avail[0]; fp.units[1] = fp.units[0]; }
       if (draft && !rt.svc) {   // 预测：随线配车会把全程交路的列车补到最低需要（用推荐车型）；加开的交路由玩家配车
-        const m = F.recommend(g.mapId, y, rt.kmh), c = Math.min(rt.cars, m.max);
+        const m = F.recommend(g.mapId, y, rt.kmh, g), c = Math.min(rt.cars, m.max);
         for (let d = 0; d < nd; d++) { const add = Math.max(0, fp.floor - fp.avail[d]); fp.avail[d] += add; n += add; cap += add * m.cap * c; cars += add * c; ops += add * m.ops; }
         if (nd === 1) fp.avail[1] = fp.avail[0];
       }
@@ -266,7 +304,8 @@
     const adds = []; let total = 0;
     C.routes.forEach(function (rt, r) {
       if (rt.svc || onSvc.has(rt.lineId)) return;   // 随线配车只补全程交路
-      const mdl = F.recommend(g.mapId, y, rt.kmh);
+      const mdl = F.recommend(g.mapId, y, rt.kmh, g);
+      if (rt.kmh > 80 && mdl.kmh < rt.kmh) return;   // 未解锁的速度由草案确认拦截。
       for (let d = 0; d < (rt.loop ? 2 : 1); d++) {
         let short = F.floorNeed(rt) - have[r][d]; if (short <= 0) continue;
         const use = [];
@@ -295,7 +334,7 @@
   // ---------------- 玩家操作 ----------------
   F.buy = function (g, lid, svc, modelId, cars, n, deferFleetUpdate) {
     const m = F.model(modelId), y = g.clock.y;
-    if (y < m.from || y > m.to || (m.maps && m.maps.indexOf(g.mapId) < 0)) return { error: F.nameOf(m) + ' 现在买不到' };
+    if (!available(m, g.mapId, y, g)) return { error: F.nameOf(m) + ' 现在买不到' };
     if (cars > m.max) return { error: F.shortOf(m) + ' 最长 ' + m.max + ' 节' };
     const cost = F.price(g, m, cars, y) * n;
     if (!g.econ.isFree() && !g.econ.canAffordBuild(cost)) return { error: '资金不足：需要 ' + U.fmtMoney(cost) };
@@ -306,8 +345,9 @@
     return { ok: true, cost: cost };
   };
   F.sell = function (g, ids) {
+    const selected = new Set(ids);
     let v = 0, n = 0;
-    g.fleet.trains = g.fleet.trains.filter(function (t) { if (ids.indexOf(t.id) < 0) return true; v += F.residual(g, t); n++; return false; });
+    g.fleet.trains = g.fleet.trains.filter(function (t) { if (!selected.has(t.id)) return true; v += F.residual(g, t); n++; return false; });
     if (!n) return { error: '没有可出售的列车' };
     if (!g.econ.isFree()) { g.econ.income('fleetSale', v); g.econ.log('fleetSale', v, 'gen', '出售旧列车 ' + n + ' 列（按残值）', { y: g.clock.y, m: g.clock.m, d: g.clock.d }); }
     g.logEvent({ tag: '运营', title: '出售列车 ' + n + ' 列', desc: '按残值回收 ' + U.fmtMoney(v) + '。' });
@@ -347,14 +387,14 @@
   // 分配后还差的列车：按推荐车型配齐（编组取站台允许的最长）
   F.fillCost = function (g, plan) {
     const y = g.clock.y, rows = []; let cost = 0;
-    for (const x of plan.needs) { if (x.short <= 0) continue; const m = F.recommend(g.mapId, y, x.rt.kmh), cars = Math.min(x.maxCars, m.max), c = F.price(g, m, cars, y) * x.short; rows.push({ x: x, m: m, cars: cars, n: x.short, cost: c }); cost += c; }
+    for (const x of plan.needs) { if (x.short <= 0) continue; const m = F.recommend(g.mapId, y, x.rt.kmh, g), cars = Math.min(x.maxCars, m.max), c = F.price(g, m, cars, y) * x.short; rows.push({ x: x, m: m, cars: cars, n: x.short, cost: c }); cost += c; }
     return { rows: rows, cost: cost };
   };
   // Spend at most a quarter of the available construction budget each month.
-  F.buyShortfall = function (g, plan) {
+  const autoBudget = g => g.econ.isFree() ? Infinity : (Math.max(0, g.econ.funds) + Math.max(0, g.econ.capex || 0)) / 4;
+  F.buyShortfall = function (g, plan, budget = autoBudget(g)) {
     const rows = F.fillCost(g,plan).rows.filter(r => r.x.rt.kmh <= 80 || r.m.kmh >= r.x.rt.kmh);
     rows.sort((a,b) => b.x.short / Math.max(1,b.x.need) - a.x.short / Math.max(1,a.x.need) || b.n - a.n);
-    let budget = g.econ.isFree() ? Infinity : (Math.max(0,g.econ.funds) + Math.max(0,g.econ.capex || 0)) / 4;
     let count = 0, total = 0;
     for (const r of rows) {
       const each = r.cost / r.n, n = Math.min(r.n,Math.floor(budget / each));
@@ -365,6 +405,38 @@
     }
     if (count) changed(g);
     return { count,total };
+  };
+  F.replaceOverAge = function (g, budget = autoBudget(g)) {
+    const old = g.fleet.trains.filter(t => F.overAge(g, t)).sort((a, b) => ageY(g, b) - ageY(g, a));
+    if (!old.length) return { count:0, total:0 };
+    const C = g.compiled, byLine = routesOfLine(C), groups = new Map(), y = g.clock.y;
+    for (const t of old) {
+      const routes = byLine.get(t.line), pos = routes && placeOf(C, routes, t);
+      if (t.line && !pos) continue;
+      const rt = pos && C.routes[pos.r], svc = rt ? F.svcId(rt, pos.d) : null;
+      const limit = rt ? rt.cars : 8, need = rt ? rt.kmh : 80;
+      const cars = Math.min(limit, t.cars), preferred = F.recommend(g.mapId, y, need, g);
+      const fits = m => m.max >= cars && (need <= 80 || m.kmh >= need) &&
+        (!rt || tooSlow(t, rt) || t.cars > limit || m.cap * cars >= F.capOf(t));
+      const model = fits(preferred) ? preferred : F.available(g.mapId, y, g).find(fits);
+      if (!model) continue;
+      const key = JSON.stringify([t.line, svc, model.id, cars]);
+      if (!groups.has(key)) groups.set(key, { line:t.line, svc, model, cars, ids:[] });
+      groups.get(key).ids.push(t.id);
+    }
+    const sold = [];
+    let total = 0;
+    for (const row of groups.values()) {
+      const each = F.price(g, row.model, row.cars, y);
+      const count = Math.min(row.ids.length, Math.floor((budget - total) / each));
+      if (count < 1) continue;
+      const result = F.buy(g, row.line, row.svc, row.model.id, row.cars, count, true);
+      if (!result.ok) continue;
+      total += result.cost;
+      sold.push(...row.ids.slice(0, count));
+    }
+    if (sold.length) F.sell(g, sold);
+    return { count:sold.length, total };
   };
   F.setMode = function (g, lid, mode) {
     const o = g.fleet.ops[lid] || (g.fleet.ops[lid] = { mode: 'auto', n: {} });
@@ -440,8 +512,11 @@
       const p = F.allocPlan(g);
       if (p.moved) F.applyAlloc(g,p);
       if (fl.autoBuy) {
-        const bought = F.buyShortfall(g,p);
+        const budget = autoBudget(g);
+        const bought = F.buyShortfall(g,p,budget);
+        const replaced = F.replaceOverAge(g,budget - bought.total);
         if (bought.count) g.emit('toast', { kind:'info', text:'自动购买 ' + bought.count + ' 列车 · ' + U.fmtMoney(bought.total) });
+        if (replaced.count) g.emit('toast', { kind:'info', text:'自动更换 ' + replaced.count + ' 列超龄列车' });
       }
     }
     for (const lid in g.net.lines) {
@@ -458,7 +533,7 @@
     if (g.clock.m === 1) {
       const old = fl.trains.filter(function (t) { return ageY(g, t) > F.model(t.model).life; }).length;
       if (old && !(note.old > ym)) { note.old = ym + 12; g.logEvent({ tag: '运营', title: old + ' 列列车超过设计寿命', desc: '超龄列车的运营与维护费用 ×1.25。可以出售旧车（按残值），换购新车型。' }); }
-      const y = g.clock.y, fresh = MODELS.filter(function (m) { return m.from === y && (!m.maps || m.maps.indexOf(g.mapId) >= 0); });
+      const y = g.clock.y, fresh = MODELS.filter(m => m.from === y && (m.maps || m.kmh <= 80) && available(m, g.mapId, y, g));
       if (fresh.length && !(note.newY >= y)) {
         note.newY = y;
         g.logEvent({ tag: '运营', title: '新车型开放：' + fresh.map(function (m) { return m.name; }).join('、'), desc: '可以在线路的「列车运营」分页购买。车队页列出以后开放的车型。' });
@@ -570,7 +645,7 @@
     // 编组超过站台长度、不能上线的列车
     const off = groupTrains(g, all.filter(function (t) { return !onRoute.has(t.id); }));
     if (off.length) {
-      const lineKmh = CM.Metro.lineKmh(g.net.lines[lid]);
+      const lineKmh = Math.max(80, ...info.map(s => s.rt.kmh));
       el.appendChild(h('div', { class: 'fl-h' }, '不能上线的列车'));
       for (const x of off) el.appendChild(unitRow(x, lineKmh > 80 && x.m.kmh < lineKmh ? '最高 ' + x.m.kmh + ' km/h，低于本线 ' + lineKmh + ' km/h，调往其他线路或出售' : '编组超过本线站台长度，调往其他线路或出售'));
     }
@@ -586,11 +661,12 @@
   };
   // 线路运行速度（v2.5 玩家反馈）：进入草案，确认后生效；改了速度的线路全线复核转弯半径，提速按全线长度计改造费
   UI.prototype.lineSpeedBlock = function (lid) {
-    const g = this.g(), self = this, MM = CM.Metro, net = g.draft ? g.draft.net : g.net, L = net.lines[lid], cur = MM.lineKmh(L), y = g.clock.y;
-    let tight = Infinity; for (const s of MM.lineSegs(net, lid)) { const v = MM.segGeom(net, s, g.city).minRadiusM; if (isFinite(v)) tight = Math.min(tight, v); }
+    const g = this.g(), self = this, MM = CM.Metro, net = g.draft ? g.draft.net : g.net, L = net.lines[lid], cur = MM.lineKmh(L);
+    const tracks = MM.lineSegs(net, lid), overrides = tracks.filter(s => s.speed);
+    let tight = Infinity; for (const s of tracks) { if (s.speed) continue; const v = MM.segGeom(net, s, g.city).minRadiusM; if (isFinite(v)) tight = Math.min(tight, v); }
     const ctl = h('div', { class: 'seg-ctl sm' }, CFG.metro.speedGrades.map(function (x) {
-      const open = F.speedOpen(g.mapId, y, x.kmh), over = isFinite(tight) && tight < x.minR, on = cur === x.kmh;
-      const tip = x.kmh + ' km/h：最小转弯半径 ' + x.minR + ' m，运营成本 ×' + x.ops.toFixed(2) + (x.track ? '，轨道造价附加 ' + Math.round(x.track * 100) + '%' : '') + (open.ok ? '' : '；需要最高速度不低于 ' + x.kmh + ' km/h 的车型' + (open.year ? '（' + open.year + ' 年起开放）' : '')) + (over ? '；本线最急处约 ' + Math.round(tight) + ' m，要先放缓弯道' : '');
+      const open = F.speedOpen(g, x.kmh), over = isFinite(tight) && tight < x.minR, on = cur === x.kmh;
+      const tip = x.kmh + ' km/h：最小转弯半径 ' + x.minR + ' m，运营成本 ×' + x.ops.toFixed(2) + (x.track ? '，轨道造价附加 ' + Math.round(x.track * 100) + '%' : '') + (open.ok ? '' : '；' + speedHint(open)) + (over ? '；本线最急处约 ' + Math.round(tight) + ' m，要先放缓弯道' : '');
       return h('button', { class: on ? 'on' : '', disabled: on || open.ok ? null : true, 'data-tip': tip, 'data-silent': '1', onclick: function () {
         if (on) return;
         const r = g.edit(function (n) { const l = n.lines[lid]; if (!l) return { error: '线路不存在' }; if (x.kmh === 80) delete l.speed; else l.speed = x.kmh; });
@@ -598,7 +674,15 @@
       } }, String(x.kmh));
     }));
     const G = MM.speedGrade(L);
-    return h('div', { class: 'fo-speed' }, h('div', { class: 'fo-speed-h' }, h('b', { class: 'grow' }, '运行速度'), ctl, h('span', { class: 'tiny muted' }, 'km/h')),
+    const built = g.net.lines[lid], current = built && MM.lineKmh(built), changed = built && current !== cur;
+    const ids = new Set(tracks.map(s => s.id));
+    const fee = changed ? g.draftEval().items.reduce((sum, item) => sum + (ids.has(item.ref) && item.kind === 'upgrade' ? item.amount : 0), 0) : 0;
+    const locked = CFG.metro.speedGrades.find(grade => !F.speedOpen(g, grade.kmh).ok);
+    return h('div', { class: 'fo-speed' }, h('div', { class: 'fo-speed-h' }, h('b', { class: 'grow' }, built ? '轨道提速' : '运行速度'), ctl, h('span', { class: 'tiny muted' }, 'km/h')),
+      built ? h('div', { class: 'tiny muted' }, '现行默认 ' + current + ' km/h' + (changed ? ' · 草案 ' + cur + ' km/h · 轨道改造费 ' + U.fmtMoney(fee) : '') + ' · 选择速度后确认建设生效') : null,
+      overrides.length ? h('div', {class:'tiny muted'}, overrides.length + ' 段已单独设定速度，沿用各自的档位。') : null,
+      locked ? h('div', { class: 'tiny muted' }, locked.kmh + ' km/h · ' + speedHint(F.speedOpen(g, locked.kmh))) : null,
+      isFinite(tight) && tight < G.minR ? h('div', { class: 'tiny bad' }, '有弯道半径低于本档要求。请在建设草案查看冲突，调整线形后再确认。') : null,
       h('div', { class: 'tiny muted' }, '最小转弯半径 ' + G.minR + ' m' + (isFinite(tight) ? ' · 本线最急处约 ' + Math.round(tight) + ' m' : '') + ' · 运营成本 ×' + G.ops.toFixed(2)));
   };
   // 新增或编辑运行交路：选类型、区间与停靠站，预览用时后保存
@@ -724,7 +808,7 @@
     upd();
     this.openScreen(h('div', { class: 'card' }, this.cardHead(o.icon, 'b-blue', o.title),
       h('div', { class: 'fo-qty-row' }, h('small', null, '数量'), q.el, h('span', { class: 'tiny muted' }, '共 ' + o.max + ' 列'), h('button', { class: 'btn sm ghost', onclick: function () { q.set(o.max); } }, '全部')),
-      noteEl,
+      noteEl, o.extra,
       h('div', { class: 'modal-actions' }, h('button', { class: 'btn', onclick: function () { self.closeScreen(); } }, '取消'), h('button', { class: 'btn primary', onclick: function () { self.closeScreen(); o.apply(n); } }, ic('check', 14), o.btn))), function () { self.closeScreen(); });
     q.inp.focus(); q.inp.select();
   };
@@ -733,7 +817,32 @@
     const g = this.g(), self = this;
     const worth = function (k) { const pick = x.ids.slice(0, k); let v = 0; for (const t of g.fleet.trains) if (pick.indexOf(t.id) >= 0) v += F.residual(g, t); return v; };
     this.showTrainQty({ title: '出售列车 · ' + F.shortOf(x.m) + ' ' + x.cars + ' 节', icon: 'train', max: x.ids.length, btn: '出售', note: function (k) { return '先卖最旧的 ' + k + ' 列，按残值回收约 ' + U.fmtMoney(worth(k)) + '。'; },
+      extra: g.fleet.trains.some(t => F.overAge(g,t)) ? h('button', {class:'btn sm', onclick:() => self.showOverAgeSell(done, true)}, '全选超龄列车') : null,
       apply: function (k) { const r = F.sell(g, x.ids.slice(0, k)); if (r.ok) { sfx('trainSell'); self.toast('已出售 ' + r.n + ' 列，回收 ' + U.fmtMoney(r.value), 'good'); } done(); } });
+  };
+  UI.prototype.showOverAgeSell = function (done, selectAll) {
+    const g = this.g(), self = this, old = g.fleet.trains.filter(t => F.overAge(g, t));
+    const box = h('div'), selected = new Set(selectAll ? old.map(t => t.id) : []);
+    const summary = h('p', {class:'note', role:'status'});
+    const sell = h('button', {class:'btn danger', disabled:true, onclick: function () {
+      const result = F.sell(g, Array.from(selected));
+      if (!result.ok) { self.toast(result.error, 'bad'); return; }
+      self.closeScreen(); sfx('trainSell');
+      self.toast('已出售 ' + result.n + ' 列超龄车，回收 ' + U.fmtMoney(result.value), 'good');
+      done();
+    }}, '出售所选');
+    const update = function () {
+      const value = old.reduce((sum,t) => sum + (selected.has(t.id) ? F.residual(g,t) : 0), 0);
+      summary.textContent = '已选 ' + selected.size + ' / ' + old.length + ' 列 · 回收 ' + U.fmtMoney(value);
+      sell.disabled = !selected.size;
+    };
+    box.append(h('button', {class:'btn sm', disabled:!old.length, onclick: function () {
+      for (const t of old) selected.add(t.id);
+      update();
+    }}, '全选超龄列车'), summary, h('p', {class:'small muted'}, '范围包括各线路及车辆段。出售配属列车可能影响班次。'),
+    h('div', {class:'modal-actions'}, h('button', {class:'btn', onclick:() => self.closeScreen()}, '取消'), sell));
+    update();
+    this.openScreen(h('div', {class:'card'}, this.cardHead('train','b-blue','出售超龄列车'), box), () => this.closeScreen());
   };
   // 车辆段智能分配：先看方案再确认；分配后还差的可以一次买够
   UI.prototype.showFleetAlloc = function () {
@@ -759,16 +868,18 @@
   };
   // 购买列车（lid 为空时买入车辆段）
   UI.prototype.showTrainShop = function (lid, svc, svcName, maxCars) {
-    const lineKmh = lid ? CM.Metro.lineKmh(this.g().net.lines[lid]) : 80, fast = function (m) { return lineKmh <= 80 || m.kmh >= lineKmh; };   // 高于 80 km/h 的线路只能用足够快的车型
-    const g = this.g(), self = this, y = g.clock.y, list = F.available(g.mapId, y).filter(fast), soon = F.upcoming(g.mapId, y).filter(fast), col = lineColor(g, lid);
+    const g = this.g(), self = this, y = g.clock.y, lineKmh = lid ? (F.lineInfo(g, lid) || []).find(x => x.id === svc)?.rt.kmh || 80 : 80;
+    const fast = m => lineKmh <= 80 || m.kmh >= lineKmh;
+    const list = F.available(g.mapId, y, g).filter(fast), soon = F.upcoming(g.mapId, y, g).filter(fast), col = lineColor(g, lid);
+    const lockLabel = m => m.kmh > 80 && !F.speedOpen(g, m.kmh).ok ? speedHint(F.speedOpen(g, m.kmh)) : m.from + ' 年开放';
     let sel = list[0], cars = Math.min(maxCars, sel ? sel.max : 6), n = 1;
     const gap = function () { if (!lid) return F.allocPlan(g).unmet; const s = (F.lineInfo(g, lid) || []).find(function (x) { return x.id === svc; }); return s ? s.short : 0; };
     const box = h('div');
     // 车型卡片：未开放的车型变灰、不能选，标出开放年份
     const card = function (m, lock) {
       const kids = [h('span', { class: 'fo-pic', html: F.sideSVG(m, col, 168) }), h('b', null, F.nameOf(m)),
-        lock ? h('span', { class: 'fo-lock' }, ic('lock', 12), h('span', null, m.from + ' 年开放'), h('span', null, '还有 ' + (m.from - y) + ' 年'))
-          : h('span', { class: 'tiny muted' }, (m.maps ? '本市车型' : '通用车型') + ' · ' + m.from + (m.to < 9999 ? '–' + m.to : ' 年起')),
+        lock ? h('span', { class: 'fo-lock' }, ic('lock', 12), h('span', null, lockLabel(m)))
+          : h('span', { class: 'tiny muted' }, !m.maps && m.kmh > 80 ? '通用车型 · 随运营里程解锁' : (m.maps ? '本市车型' : '通用车型') + ' · ' + m.from + (m.to < 9999 ? '–' + m.to : ' 年起')),
         h('span', { class: 'tiny' }, '每节 ' + m.cap + ' 人 · ' + m.kmh + ' km/h · 运营成本 ×' + m.ops.toFixed(2)),
         h('span', { class: 'tiny muted' }, F.descOf(m))];
       if (lock) return h('div', { class: 'fo-model locked' }, kids);
@@ -820,6 +931,7 @@
   // 调入列车：车辆段与其他线路的列车（按线路、车型与编组分组）
   UI.prototype.showTrainTransfer = function (lid, svc, svcName, maxCars) {
     const g = this.g(), self = this, box = h('div');
+    const lineKmh = (F.lineInfo(g, lid) || []).find(x => x.id === svc)?.rt.kmh || 80;
     const draw = function () {
       box.replaceChildren();
       const src = new Map();
@@ -832,7 +944,6 @@
         if (L) { const inf = F.lineInfo(g, s.line) || [], av = inf.reduce(function (a, x) { return a + x.avail; }, 0), nd = inf.reduce(function (a, x) { return a + x.peakNeed; }, 0); use = '高峰需要 ' + nd + ' / 配属 ' + av + (av > nd ? '，约 ' + (av - nd) + ' 列富余' : ''); }
         const svcLabel = L && s.svc ? (F.lineInfo(g, s.line) || []).filter(function (x) { return x.id === s.svc; }).map(function (x) { return x.name; })[0] : null;
         box.appendChild(h('div', { class: 'fl-h' }, svcLabel || (L ? L.name : '车辆段（闲置）'), use ? h('span', { class: 'tiny muted', style: { marginLeft: '8px' } }, use) : null));
-        const lineKmh = CM.Metro.lineKmh(g.net.lines[lid]);
         for (const x of groupTrains(g, s.list)) {
           const tooLong = x.cars > maxCars, slow = lineKmh > 80 && x.m.kmh < lineKmh, ok = !tooLong && !slow;
           box.appendChild(h('div', { class: 'fo-unit' },
@@ -906,11 +1017,12 @@
       h('button', { class: 'switch' + (auto ? ' on' : ''), role: 'switch', 'aria-checked': auto ? 'true' : 'false', 'aria-label': '每月自动分配闲置列车', onclick: function () { fl.autoAlloc = !fl.autoAlloc; sfx('toggle'); self.markUnsaved(); self.rerenderPage(); } }, h('i'))));
     const autoBuy = !!fl.autoBuy;
     el.appendChild(h('div', { class:'fo-auto' }, h('span', { class:'grow' }, h('b', null, '每月自动购买缺失列车'),
-      h('small', null, '月初先调库存，再给智能调度线路补车。每月最多使用可用建设资金的 25%。')),
+      h('small', null, '月初先调库存、补缺口，再购买替代车并出售超龄车。两项购车共用可用建设资金的 25%。')),
       h('button', { class:'switch' + (autoBuy ? ' on' : ''), role:'switch', 'aria-checked':autoBuy ? 'true' : 'false', 'aria-label':'每月自动购买缺失列车',
         onclick:function () { fl.autoBuy = !fl.autoBuy; sfx('toggle'); self.markUnsaved(); self.scheduleAutosave(); self.rerenderPage(); } }, h('i'))));
     if (!depot.length) el.appendChild(h('div', { class: 'note' }, '没有闲置列车。线路调整后没有归属的列车、从线路调回的列车和买入车辆段的列车停在这里。'));
     const refresh = function () { self.markUnsaved(); self.scheduleAutosave(); self.rerenderPage(); };
+    if (old) el.appendChild(h('button', {class:'btn sm', onclick:() => self.showOverAgeSell(refresh,true)}, '出售超龄列车（' + old + ' 列）'));
     for (const x of groupTrains(g, depot)) el.appendChild(h('div', { class: 'fo-unit' },
       h('span', { class: 'fo-pic', html: F.sideSVG(x.m, '#2f6fa8', 84) }),
       h('div', { class: 'grow' }, h('b', null, F.shortOf(x.m) + ' · ' + x.cars + ' 节 × ' + x.ids.length), h('small', null, '残值约 ' + U.fmtMoney(x.value) + (x.old ? ' · ' + x.old + ' 列超龄' : ''))),
@@ -918,16 +1030,16 @@
     el.appendChild(h('div', { class: 'note', style: { marginTop: '8px' } }, '在线路的「列车运营」分页也可以调入车辆段的列车，或为单个交路买车。'));
     // 当年在售与以后开放的车型，独立于已拥有的车队。
     const y = g.clock.y, ml = h('div', { class: 'fo-units' });
-    for (const m of F.available(g.mapId, y).concat(F.upcoming(g.mapId, y))) {
-      const on = m.from <= y;
+    for (const m of F.available(g.mapId, y, g).concat(F.upcoming(g.mapId, y, g))) {
+      const on = available(m, g.mapId, y, g), speed = F.speedOpen(g, m.kmh);
       ml.appendChild(h('div', { class: 'fo-unit' + (on ? '' : ' locked') },
         h('span', { class: 'fo-pic', html: F.sideSVG(m, '#2f6fa8', 60) }),
         h('div', { class: 'grow' }, h('b', null, F.nameOf(m)), h('small', null, '每节 ' + m.cap + ' 人 · 运营成本 ×' + m.ops.toFixed(2))),
-        on ? h('small', { class: 'good fo-st' }, '在售') : h('span', { class: 'fo-lock fo-st' }, ic('lock', 12), m.from + ' 年开放')));
+        on ? h('small', { class: 'good fo-st' }, '在售') : h('span', { class: 'fo-lock fo-st' }, ic('lock', 12), speed.ok ? m.from + ' 年开放' : speedHint(speed))));
     }
     el.appendChild(h('div', { class: 'fl-h', style: { marginTop: '12px' } }, '车型目录 · 在售与即将开放'));
     el.appendChild(ml);
-    el.appendChild(h('div', { class: 'note' }, '车型按城市与年代开放：开放当年 1 月会发出通知，已停产的车型不再列出。'));
+    el.appendChild(h('div', { class: 'note' }, '通用快线车型随运营里程开放，本市车型另有年代限制。'));
     return { title: '车队', el: el };
   };
 })(window.CM);

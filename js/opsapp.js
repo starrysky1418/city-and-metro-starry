@@ -73,7 +73,7 @@
       for (let i = idle.length - 1; i >= 0 && short > 0; i--) { const t = idle[i], need = s.rt.kmh > 80 ? s.rt.kmh : 0; if (t.cars <= s.rt.cars && F.model(t.model).kmh >= need) { use.push(t.id); idle.splice(i, 1); short--; } }
       if (use.length) { steps.push({ type: 'move', ids: use, line: lid, svc: s.id }); moved += use.length; }
       if (short > 0) {
-        const m = F.recommend(g.mapId, y, s.rt.kmh), cars = Math.min(s.rt.cars, m.max), each = F.price(g, m, cars, y);
+        const m = F.recommend(g.mapId, y, s.rt.kmh, g), cars = Math.min(s.rt.cars, m.max), each = F.price(g, m, cars, y);
         steps.push({ type: 'buy', line: lid, svc: s.id, model: m.id, cars: cars, n: short, name: F.shortOf(m) });
         cost += each * short; bought += short;
       }

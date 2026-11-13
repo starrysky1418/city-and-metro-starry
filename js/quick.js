@@ -192,7 +192,8 @@
       closePop(); key = ''; render();
     };
     input.addEventListener('keydown', function (e) { if (e.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') { e.preventDefault(); apply(); } if (e.key === 'Escape') { e.preventDefault(); closePop(); } });
-    openPop(anchor, kind === 'station' ? '车站改名' : '线路改名', h('div', null, h('div', { class: 'row' }, input, h('button', { class: 'btn sm primary', onclick: apply }, '确定')), msg));
+    const options = kind === 'station' ? CM.UI.stationNameButtons(M.stationNameOptions(n, id, ui.g().city), function (name) { input.value = name; apply(); }) : null;
+    openPop(anchor, kind === 'station' ? '车站改名' : '线路改名', h('div', null, h('div', { class: 'row' }, input, h('button', { class: 'btn sm primary', onclick: apply }, '确定')), options, msg));
   }
   function popColor(lid, anchor) {
     const n = net(), L = n.lines[lid]; if (!L) return;

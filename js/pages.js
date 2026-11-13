@@ -67,6 +67,13 @@
     this.rerenderPage();
     return { ok: true, old: old };
   };
+  UI.stationNameButtons = function (names, choose) {
+    if (!names.length) return null;
+    return h('div', { class: 'station-name-options', role: 'group', 'aria-label': '候选站名' },
+      names.map(name => h('button', { type: 'button', class: 'btn sm ghost',
+        onpointerdown: function (e) { e.preventDefault(); },
+        onclick: function (e) { e.stopPropagation(); choose(name); } }, name)));
+  };
   UI.sgnPeople = function (d) { return Math.abs(d) < 0.5 ? '±0' : (d > 0 ? '+' : '−') + U.fmtPeople(Math.abs(d)); };
   UI.prototype.predictionBlock = function () {
     const g = this.g(), self = this, d = g.draft;
@@ -392,7 +399,9 @@
       const moved = U.dist(official.x, official.y, s.x, s.y) * CFG.CELL_M;
       el.appendChild(h('div', { class: 'draft-diff' }, h('span', { class: 'dd-k' }, '已建'), h('span', null, desc(official, g.net)), h('span', { class: 'dd-arrow' }, '→'), h('span', { class: 'dd-k draft' }, '草案'), h('span', null, desc(s, net) + (moved > 1 ? ' · 移动 ' + Math.round(moved) + ' m' : ''))));
     } else if (changed) el.appendChild(h('div', { class: 'callout info clickable', onclick: function () { self.openObj('station', id, 'build'); } }, '草案中有修改，确认建设后生效 · 查看'));
-    const ret = { title: s.name + ' 站', el: el, highlightLine: null, titleEdit: { value: s.name, max: 16, apply: function (v) { return self.setStationName(id, v); } } };
+    const ret = { title: s.name + ' 站', el: el, highlightLine: null, titleEdit: { value: s.name, max: 16,
+      options: function () { return M.stationNameOptions(g.draft ? g.draft.net : g.net, id, g.city); },
+      apply: function (v) { return self.setStationName(id, v); } } };
     if (tab === 'build') { el.appendChild(this.stationBuild(id)); return ret; }
     if (tab === 'tod') { el.appendChild(this.todBody(id, function () { self.rerenderPage(); })); return ret; }
     const C = g.model.net ? g.model.net.C : null;
@@ -551,8 +560,7 @@
   // 步行覆盖（沿实际道路）；potential：未通车站接入线路后的潜在覆盖
   UI.prototype.coverBlock = function (s, k, potential) {
     const g = this.g(), acc = g.model.net.acc, tree = acc.trees[k];
-    if (!tree) return h('div', { class: 'callout warn' }, '车站周边暂无可步行到达的道路，暂无覆盖。');
-    const vm = new Map(); for (let q = 0; q < tree.verts.length; q++) vm.set(tree.verts[q], tree.dist[q]);
+    const vm = new Map(); if (tree) for (let q = 0; q < tree.verts.length; q++) vm.set(tree.verts[q], tree.dist[q]);
     const city = g.city, VW = city.VW, ci = Math.floor(s.x), cj = Math.floor(s.y);
     const sums = [0, 0, 0], jobs = [0, 0, 0];
     for (let j = Math.max(0, cj - 6); j <= Math.min(city.H - 1, cj + 6); j++) for (let i = Math.max(0, ci - 6); i <= Math.min(city.W - 1, ci + 6); i++) {
@@ -560,10 +568,11 @@
       let m = Infinity; for (const v of [v0, v0 + 1, v0 + VW, v0 + VW + 1]) { const dd = vm.get(v); if (dd !== undefined && dd < m) m = dd; }
       m += CFG.walk.cellExtraM;
       const c = j * city.W + i;
+      if (m > CFG.walk.maxAccessM && city.pop[c] + city.jobs[c] > 0) m = CM.Model.localWalk(city, s.x, s.y, c);
       for (let q = 0; q < 3; q++) if (m <= (q + 1) * 5 * CFG.walk.mPerMin) { sums[q] += city.pop[c]; jobs[q] += city.jobs[c]; }
     }
     return h('div', null, this.kv([['步行 5 分钟内', U.fmtPeople(sums[0]) + ' 人 · ' + U.fmtPeople(jobs[0]) + ' 岗位'], ['步行 10 分钟内', U.fmtPeople(sums[1]) + ' 人 · ' + U.fmtPeople(jobs[1]) + ' 岗位'], ['步行 15 分钟内', U.fmtPeople(sums[2]) + ' 人 · ' + U.fmtPeople(jobs[2]) + ' 岗位']]),
-      h('div', { class: 'note', style: { marginTop: '6px' } }, (potential ? '仅为预览：车站未通车前不计入任何覆盖统计。' : '') + '按实际道路步行距离计算（含街道到建筑的平均距离），河流、断路与没有道口或地道的地面铁路会阻隔。'));
+      h('div', { class: 'note', style: { marginTop: '6px' } }, (potential ? '仅为预览：车站未通车前不计入任何覆盖统计。' : '') + '优先按道路步行距离计算。路网未覆盖的近邻地块可按短距离步行估算，水面和地面铁路仍会阻隔。'));
   };
   // 拥挤诊断：区分车站容量不足与列车运力不足，给出对应的处理入口
   UI.prototype.crowdBlock = function (id, k) {
@@ -649,6 +658,7 @@
     if (tp.topo === 'invalid') el.appendChild(h('div', { class: 'callout bad' }, tp.reason));
     if (tab === 'ops') { this.lineOpsTab(el, lid); return { title: line.name, el: el, highlightLine: lid, titleEdit: { value: line.name, max: 14, apply: function (v) { self.setLineLook(lid, { name: v }); } }, badgeClick: function (e) { if (CM.Quick) CM.Quick.popColor(lid, e.currentTarget); }, badgeTip: '改颜色' }; }
     if (tab === 'info') {
+      if (g.fleet && CM.Fleet) el.appendChild(h('button', { class: 'btn sm', onclick: function () { self.openObj('line', lid, 'build'); } }, '升级轨道'));
       // 运营
       const mnet = g.model.net;
       const routes = mnet ? mnet.C.routes.map(function (r, i) { return [r, i]; }).filter(function (a) { return a[0].lineId === lid; }) : [];
@@ -738,7 +748,7 @@
       }, true));
     }
     if (tab === 'build') {
-      if (!g.net.lines[lid] && g.fleet && CM.Fleet) el.appendChild(this.lineSpeedBlock(lid));   // 草案中的新线路：运行速度在这里设定（运营中的线路在「列车运营」分页）
+      if (g.fleet && CM.Fleet) el.appendChild(this.lineSpeedBlock(lid));
       // 贯通运营、支线命名与支线转为独立线路（v2.1 玩家反馈）：只改变运营组织，不改动轨道、不另收建设费
       const others = Object.keys(net.lines).filter(function (o) { return o !== lid && M.sharedStations(net, lid, o).length; });
       const mids = (tp.topo === 'path' || tp.topo === 'branch') ? tp.stations.filter(function (sid) { return tp.adj.get(sid).length >= 2; }) : [];
@@ -946,7 +956,7 @@
     const chip = function (label, color, onRemove) { return h('span', { class: 'chip' }, color ? h('span', { class: 'dot', style: { background: color } }) : null, label, h('button', { class: 'chip-x', 'data-tip': '移出多选', onclick: onRemove }, '×')); };
     for (const id of st) chips.appendChild(chip(net.stations[id].name, null, function () { self.toggleMulti('station', id); }));
     for (const id of sg) { const s = net.segments[id], L = net.lines[s.line]; chips.appendChild(chip((L ? L.name + ' ' : '') + net.stations[s.a].name + '—' + net.stations[s.b].name, L ? AX.line(L) : null, function () { self.toggleMulti('seg', id); })); }
-    el.appendChild(chips);
+    el.appendChild(sg.length >= 8 && !razing ? h('details', null, h('summary', null, '查看地图多选项'), chips) : chips);
     const delBtn = h('button', { class: 'btn sm danger', 'data-tip': '进入草案，可一次撤销', onclick: function () { self.demolishMulti(); } }, ic('bulldozer', 14), '拆除所选（' + (st.length + sg.length) + ' 项）');
     if (razing) {
       const imp = this.demolishImpact({ kind: 'many', stations: st, segs: sg }), box = h('div', { class: 'batch-pv' }, h('b', null, '拆除后的变化'));
@@ -963,11 +973,11 @@
       pv.innerHTML = '';
       if (!nChanged) { pv.appendChild(h('div', { class: 'callout info' }, label + '：所选对象均已满足，无需修改。')); return; }
       const clone = M.clone(net); fn(clone);
-      const ev0 = g.draft ? g.draftEval() : { total: 0, conflicts: [] };
+      const ev0 = g.draft ? M.evaluate(net, g.net, g.city, g.clock.y) : { total: 0, conflicts: [] };
       const ev1 = M.evaluate(clone, g.net, g.city, g.clock.y);
       const fresh = ev1.conflicts.filter(function (c) { return !ev0.conflicts.some(function (o) { return o.msg === c.msg; }); });
       const box = h('div', { class: 'batch-pv' }, h('b', null, label + '（' + nChanged + ' 项）'),
-        self.kv([['本次批量费用', U.fmtMoney(Math.max(0, ev1.total - ev0.total))], ['草案合计', U.fmtMoney(ev1.total)], ['新增冲突', fresh.length ? fresh.length + ' 处' : '无', fresh.length ? 'bad' : 'good']]));
+        self.kv([['本次工程费用', U.fmtMoney(Math.max(0, ev1.total - ev0.total))], ['草案工程费（不含配车）', U.fmtMoney(ev1.total)], ['新增冲突', fresh.length ? fresh.length + ' 处' : '无', fresh.length ? 'bad' : 'good']]));
       for (const c of fresh.slice(0, 6)) box.appendChild(h('div', { class: 'small bad', style: { padding: '2px 0' } }, '· ' + c.msg));
       box.appendChild(h('div', { class: 'row', style: { marginTop: '8px' } }, h('span', { class: 'grow' }),
         h('button', { class: 'btn sm', onclick: function () { pv.innerHTML = ''; } }, '取消'),
@@ -982,6 +992,46 @@
         }))));
     }
     if (sg.length) {
+      const speeds = h('div');
+      const showSpeed = function (grade) {
+        pv.replaceChildren();
+        speeds.replaceChildren();
+        const checks = [];
+        const master = h('input', {type:'checkbox'});
+        const apply = h('button', {class:'btn sm', disabled:true, onclick: function () {
+          const selected = checks.filter(row => row.input.checked).map(row => row.id);
+          preview('区段提速至 ' + grade.kmh + ' km/h', function (nn) {
+            for (const id of selected) nn.segments[id].speed = grade.kmh;
+          }, selected.length);
+        }}, '预览所选区段');
+        const sync = function () {
+          pv.replaceChildren();
+          const n = checks.filter(row => row.input.checked).length;
+          master.checked = n > 0 && n === checks.length;
+          master.indeterminate = n > 0 && n < checks.length;
+          apply.disabled = !n;
+        };
+        master.addEventListener('change', function () { for (const row of checks) row.input.checked = master.checked; sync(); });
+        speeds.append(h('label', {class:'row small'}, master, '全选可提速区段'));
+        for (const id of sg) {
+          const s = net.segments[id], current = M.segmentGrade(net, s), radius = M.segGeom(net, s, g.city).minRadiusM;
+          const ok = current.kmh < grade.kmh && radius >= grade.minR;
+          const input = h('input', {type:'checkbox', checked:ok, disabled:!ok});
+          if (ok) { checks.push({id,input}); input.addEventListener('change', sync); }
+          const note = current.kmh + ' km/h · ' + (isFinite(radius) ? '半径 ' + Math.round(radius) + ' m' : '直线') +
+            (current.kmh >= grade.kmh ? ' · 已达该档' : radius < grade.minR ? ' · 需要 ' + grade.minR + ' m' : radius < grade.warnR ? ' · 弯道限速' : '');
+          speeds.append(h('label', {class:'row small'}, input, h('span', {class:'grow'}, net.stations[s.a].name + '—' + net.stations[s.b].name),
+            h('span', {class:ok ? 'muted' : 'tiny muted'}, note)));
+        }
+        master.disabled = !checks.length;
+        speeds.append(apply);
+        sync();
+      };
+      el.appendChild(h('div', {class:'field', style:{marginTop:'10px'}}, h('label', null, '区段提速'),
+        h('div', {class:'seg-ctl sm'}, mc.speedGrades.filter(x => x.kmh > 40).map(function (x) {
+          const access = CM.Fleet?.speedOpen(g, x.kmh);
+          return h('button', {disabled:access && !access.ok, title:access && !access.ok ? '需 ' + access.required + ' km 已运营线网' : '', onclick:() => showSpeed(x)}, x.kmh + ' km/h');
+        })), speeds));
       el.appendChild(h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', null, '统一轨道建设方式（按新建计费）'),
         h('div', { class: 'seg-ctl' }, ['underground', 'surface', 'elevated'].map(function (t) {
           const n = sg.filter(function (id) { return net.segments[id].type !== t; }).length;

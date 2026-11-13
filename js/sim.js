@@ -1125,6 +1125,13 @@
     }return links;
   };
   // 小区与重要设施节点的接驳表：可步行到达的车站（最多 4 个）、覆盖比例与平均步行时间
+  Model.localWalk = function (city, x, y, c) {
+    const px = c % city.W + 0.5, py = Math.floor(c / city.W) + 0.5;
+    const d = U.dist(x, y, px, py) * CFG.CELL_M;
+    if (d > 400 || city.landFrac[c] < 0.5 || city.crossesRiver(x, y, px, py) ||
+        city.railCross([[x, y], [px, py]]).surf.length) return Infinity;
+    return 30 + d * 1.5;
+  };
   // 分步执行（v2.5 性能）：月结时每处理一批车站让出主线程；结果与一次算完相同
   Model.prototype.computeAccess = function (C) { const it = this.computeAccessGen(C); let r = it.next(); while (!r.done) r = it.next(); return r.value; };
   Model.prototype.computeAccessGen = function* (C) {
@@ -1156,7 +1163,7 @@
       const treeKey = st.x + ':' + st.y;
       const cachedTree = treeCache.get(treeKey);
       if (cachedTree) {
-        trees[k] = cachedTree.tree; accessible[k] = 1;
+        trees[k] = cachedTree.tree; accessible[k] = cachedTree.tree.verts.length ? 1 : 0;
         for (let q = 0; q < cachedTree.tree.verts.length; q++) { const v = cachedTree.tree.verts[q]; touched.push(v); D_[v] = cachedTree.exact[q]; }
       } else {
         const corners = [cj * VW + ci, cj * VW + ci + 1, (cj + 1) * VW + ci, (cj + 1) * VW + ci + 1];
@@ -1165,8 +1172,7 @@
           const d0 = U.dist(st.x, st.y, city.vx[v], city.vy[v]) * CFG.CELL_M;
           if (d0 < D_[v]) { if (D_[v] >= INF) touched.push(v); D_[v] = d0; pred[v] = -1; heap.push(d0, v); }
         }
-        if (!heap.n) continue;
-        accessible[k] = 1;
+        accessible[k] = heap.n ? 1 : 0;
         while (heap.n) {
           const u = heap.pop(), du = heap.lastKey;
           if (du > D_[u]) continue;
@@ -1194,16 +1200,18 @@
       for (let j = Math.max(0, cj - 6); j <= Math.min(city.H - 1, cj + 6); j++) {
         for (let i = Math.max(0, ci - 6); i <= Math.min(city.W - 1, ci + 6); i++) {
           const v0 = j * VW + i;
-          const cd = Math.min(D_[v0], D_[v0 + 1], D_[v0 + VW], D_[v0 + VW + 1]) + extra;
-          if (cd > maxM) continue;
           const c = j * city.W + i;
+          const w = city.pop[c] + city.jobs[c];
+          let cd = Math.min(D_[v0], D_[v0 + 1], D_[v0 + VW], D_[v0 + VW + 1]) + extra;
+          if (cd > maxM && (w > 0 || cellFac?.has(c) || ringFac?.has(c))) cd = Model.localWalk(city, st.x, st.y, c);
+          if (cd > maxM) continue;
+          accessible[k] = 1;
           if (cd < cellWalk[c]) { cellWalk[c] = cd; cellStation[c] = k; }
           // 重要设施的场地格：按格计（设施本身可能没有居住人口）
           const fl = cellFac && cellFac.get(c);
           if (fl) for (const f of fl) { let m = fMap.get(f); if (!m) { m = new Map(); fMap.set(f, m); } const e = m.get(k) || [0, 0]; e[0] += 1; e[1] += cd; m.set(k, e); }
           const rl = ringFac && ringFac.get(c);
           if (rl) for (const f of rl) { let m = eMap.get(f); if (!m) { m = new Map(); eMap.set(f, m); } const d0 = m.get(k); if (d0 === undefined || cd < d0) m.set(k, cd); }
-          const w = city.pop[c] + city.jobs[c];
           if (w <= 0) continue;
           if (cd <= 750) catchPop[k] += city.pop[c];
           const z = city.zoneOf(c);
@@ -1271,7 +1279,7 @@
           if (d > maxM * 0.8) continue;
           let wet = false;
           for (let t = 0.1; t < 0.95 && !wet; t += 0.1) if (city.waterDistAt(st.x + (f.x - st.x) * t, st.y + (f.y - st.y) * t) < 0) wet = true;
-          if (wet) continue;
+          if (wet || city.railCross([[st.x, st.y], [f.x, f.y]]).surf.length) continue;
           if (!em) { em = new Map(); eMap.set(k, em); }
           em.set(s, Math.max(60, d));
         }
@@ -2314,7 +2322,7 @@
         if (draftNet.R === 0) result.reason = '草案中没有形成可运营的线路（至少需要两座车站和一段轨道）。';
         else {
           let acc = 0; for (let s = 0; s < draftNet.N; s++) acc += draftNet.acc.accessible[s];
-          result.reason = acc === 0 ? '车站周边暂无可步行到达的道路，无法形成有效地铁行程。' : '车站覆盖范围内的出行需求很少，暂未形成有效地铁行程。';
+          result.reason = acc === 0 ? '车站附近暂无可步行接驳的居民、岗位或设施。' : '车站覆盖范围内的出行需求很少，暂未形成有效地铁行程。';
         }
       }
       result.progress = 1;
