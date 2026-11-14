@@ -10,9 +10,8 @@
   // 公告是否已读（本机记录；无法访问本地存储时视为已读，不打扰）
   const NEWS_KEY = 'cm1.newsSeen';
   // 按大小版本比较：修订版（如 2.6.1）没有新公告，不提示
-  const newsVer = function (v) { return String(v || '').split('.').slice(0, 2).join('.'); };
-  const newsSeen = function () { try { return newsVer(localStorage.getItem(NEWS_KEY)) === newsVer(CFG.GAME_VERSION); } catch (e) { return true; } };
-  const markNews = function () { try { localStorage.setItem(NEWS_KEY, CFG.GAME_VERSION); } catch (e) { /* ignore */ } };
+  const newsSeen = function () { try { return localStorage.getItem(NEWS_KEY) === CFG.COMMUNITY_VERSION; } catch (e) { return true; } };
+  const markNews = function () { try { localStorage.setItem(NEWS_KEY, CFG.COMMUNITY_VERSION); } catch (e) { /* ignore */ } };
   UI.prototype.newsUnread = function () { return !newsSeen(); };
 
   // 难度：点 + 文字
@@ -113,7 +112,7 @@
         h('a', { href: 'https://b23.tv/H18TUXD', target: '_blank', rel: 'noopener' }, '原作者视频'), ' · ',
         h('a', { href: 'https://github.com/VinsonFung/city-and-metro', target: '_blank', rel: 'noopener' }, '原始仓库'), h('br'),
         h('a', { href: 'LICENSE.txt', target: '_blank', rel: 'noopener' }, '© 2026 VinsonFung · 仅限非商业使用'), h('br'),
-        h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, '地图 © OpenStreetMap 贡献者 · ODbL'), ' · v' + CFG.GAME_VERSION));
+        h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, '地图 © OpenStreetMap 贡献者 · ODbL'), ' · Starry ' + CFG.COMMUNITY_VERSION));
     // 右上角：公告、社区版视频入口和主题共用按钮样式。
     // 社区版不再展示指向原作者账号的小红书 / 抖音入口；B站入口指向 Starry 版作者本人的视频。
     const news = h('button', { class: 'corner-btn' + (newsSeen() ? '' : ' dot'), 'data-tip': '更新公告', 'aria-label': '更新公告', onclick: function () { self.showNews(function () { self.showStart(); }); } }, ic('megaphone'));
@@ -243,7 +242,7 @@
           h('div', { class: 'ms2-tagline' }, mp.tagline || mp.sub),
           h('div', { class: 'msel-chips' }, levelEl(mp.difficulty || 2), (mp.tags || []).map(function (t) { return h('span', { class: 'tag glass-tag' }, t); }))),
         h('div', { class: 'ms2-facts' }, fl.map(function (f) { return h('div', null, h('span', null, f[0]), h('b', { title: f[1] }, f[1])); })));
-      const feats = h('div', { class: 'ms2-feats' }, (mp.features || []).map(function (f, k) {
+      const feats = h('div', { class: 'ms2-feats' }, (CM.Traits?.cards(mp) || []).concat(mp.features || []).map(function (f, k) {
         return h('div', { class: 'ms2-feat', style: { animationDelay: (0.04 * k) + 's' } }, h('span', { class: 'badge ' + ['b-blue', 'b-teal', 'b-orange', 'b-violet'][k % 4] }, ic(f[0], 15)), h('div', null, h('b', null, f[1]), h('small', null, f[2])));
       }));
       // 大事年表：开局 + 关键历史节点，按历史阶段（与游戏内阶段同色）分组；没有大事的阶段补一个「阶段开始」节点
@@ -428,7 +427,7 @@
       list.appendChild(sec);
     });
     const card = h('div', { class: 'card news' },
-      h('div', { class: 'card-head' }, h('span', { class: 'badge b-violet' }, ic('megaphone')), h('div', { class: 'grow' }, h('h2', null, '更新公告'), h('div', { class: 'tiny muted' }, '当前版本 V' + ((CM.NEWS || [])[0]?.v || CFG.GAME_VERSION))),
+      h('div', { class: 'card-head' }, h('span', { class: 'badge b-violet' }, ic('megaphone')), h('div', { class: 'grow' }, h('h2', null, '更新公告'), h('div', { class: 'tiny muted' }, 'Starry 社区版 ' + CFG.COMMUNITY_VERSION)),
         h('button', { class: 'iconbtn', 'data-tip': '关闭', 'data-key': 'Esc', onclick: close }, ic('close'))),
       list);
     this.openScreen(card, close);

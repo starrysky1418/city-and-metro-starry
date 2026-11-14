@@ -39,6 +39,12 @@
   });
   geo.places = sites.map(([name,lon,lat]) => [name,...point(lon,lat),2]).concat(geo.places);
   const data = {
+    traits:[
+      {use:'finance',flavor:'cn'},
+      {use:'guard',level:'light',star:true,label:'拙政园地下保护',text:'拙政园保护范围只允许地下线，隧道费用 ×1.30，车站费用 ×1.20。',why:'以地图中拙政园地标为中心，保护半径为游戏设定。',guards:[{lm:'su-garden',r:1.2}]},
+      {use:'crossing',label:'金鸡湖与运河',why:'苏州底图中的湖泊与运河决定实际涉水区间。',text:'水下隧道和桥梁按涉水长度加价。'},
+      {use:'commuteCorridor',star:true,label:'姑苏与园区通勤',text:'老城、园区与独墅湖之间的需求随发展加强。',why:'以姑苏老城、工业园区和独墅湖的空间关系设定游戏需求。',effect:'姑苏老城—园区的通勤与购物去向权重由 1.10 升至 1.30，2017 年起独墅湖走廊同步加强。'},
+    ],
     city:'苏州',riverName:'京杭大运河',seaName:'太湖',lineColorsNice:CM.DATA.lineColorsNice,plans:CM.DATA.plans,
     places:geo.places,rural:{pop:140,jobs:85},hsrYear:2010,
     mapLabels:['狮山','乐桥','金鸡湖西','吴中城区','松陵','唯亭','昆山城区','苏南硕放机场','新吴区'].map(n => [n,...positions.get(n)]),
@@ -89,9 +95,9 @@
     }).map(r => ({...r,from:2010})),
     roadYears:{},bridgeYears:{},bridgeDefaultYear:2010,simRoads:[],
     eras:[
-      {id:'su-start',from:2010,name:'首线筹建',tag:'模拟',summary:'老城、高新区与园区形成东西向需求。',grow:{jobs:{west:1.2,park:1.35}}},
-      {id:'su-expand',from:2017,name:'向南扩张',tag:'模拟',summary:'吴江与独墅湖逐步形成新的需求。',grow:{pop:{wujiang:1.5,university:1.3},jobs:{park:1.45}}},
-      {id:'su-regional',from:2023,name:'市域连网',tag:'模拟',summary:'园区以东和高铁新城继续发展。',grow:{jobs:{kunshan:1.3,xiangcheng:1.35}}},
+      {id:'su-start',from:2010,name:'首线筹建',tag:'模拟',summary:'老城、高新区与园区形成东西向需求。',grow:{jobs:{west:1.2,park:1.35}},corridors:[{a:'old',b:'park',f:1.10}]},
+      {id:'su-expand',from:2017,name:'向南扩张',tag:'模拟',summary:'吴江与独墅湖逐步形成新的需求。',grow:{pop:{wujiang:1.5,university:1.3},jobs:{park:1.45}},corridors:[{a:'old',b:'park',f:1.22},{a:'park',b:'university',f:1.20}]},
+      {id:'su-regional',from:2023,name:'市域连网',tag:'模拟',summary:'园区以东和高铁新城继续发展。',grow:{jobs:{kunshan:1.3,xiangcheng:1.35,park:1.35}},corridors:[{a:'old',b:'park',f:1.30},{a:'park',b:'university',f:1.25}]},
     ],
     events:[
       {y:2010,m:1,tag:'史实',title:'苏州首线在建',desc:'现实中一号线已开工。本局可自行选择首线走向。'},

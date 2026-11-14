@@ -45,7 +45,7 @@
       <div>
         <span class="eyebrow"><i class="dot"></i> CHANGELOG</span>
         <h1>版本记录</h1>
-        <p class="hero-sub" style="max-width:44em">Starry 非商业社区修改版的历次更新。最新 1.3 带来区段提速、超龄列车换新和跳月优化。</p>
+        <p class="hero-sub" style="max-width:44em">Starry 非商业社区修改版的历次更新。最新 1.3.1 加入铁路运营权，并调整广州、重庆及车队管理。</p>
         <div class="hero-actions" style="margin-top:24px">
           <a class="btn btn-primary" data-play href="../">打开游戏 <span class="arrow">→</span></a>
           <a class="btn btn-ghost" href="index.html">返回首页</a>
@@ -61,187 +61,100 @@
 
         <div class="log-item">
           <div class="log-meta">
-            <div class="log-ver">1.3</div>
-            <div class="log-date">2026-11-13 · 已上线</div>
+            <div class="log-ver">1.3.1</div>
+            <div class="log-date">2026-11-14</div>
             <span class="log-badge badge-rel">RELEASE</span>
           </div>
           <div class="log-body">
-            <h3>快线分段提速与车队换新</h3>
+            <h3>铁路运营权与工程、运营改进</h3>
             <ul>
-              <li>按已运营线网里程解锁 100、120、160 km/h 档位及通用快线车型。广州、上海等大图的门槛为 100、300、500 公里。</li>
-              <li>批量修改轨道时可按区段勾选提速，查看弯道半径、限速提示和工程报价。既有车站的规模、位置和标高改造也能分批确认。</li>
-              <li>出售界面可全选超龄列车并查看回收金额。开启自动购车后，月初先补缺车，再用当月购车预算换掉超龄车。</li>
-              <li>优化跳月的界面刷新与运营收支计算。片区任务改用「非地铁出行」表述，降低达成难度，并把落在水面的旗标移到同片区开放陆地。</li>
+              <li>香港可从 1970 年起取得九广铁路／东铁线运营权，上海可从 2012 年 9 月起取得金山铁路运营权。签约支付一次性费用，此后按合同支付月费，可调整班次。</li>
+              <li>广州重新校准人口、经济与拨款，补充佛山南海、顺德的客流和道路，调整花都、增城、从化等外围的开放节奏，并将东莞主城及其东侧作为地图背景。</li>
+              <li>重庆重新校准主城人口和建设预算，增加可配置高差的车站出入口。山体工程按线路与地形的相对高度处理，高架或地面线路进入山体时可以形成隧道。</li>
+              <li>天津、成都、重庆调整重要设施的吸引客流。在线网成长回放中可直接导出视频。</li>
+              <li>车站总览选定商业等级后可一键勾选预计盈利的车站。既有车站的位置、标高和规模改造列入草案，可分批确认。</li>
+              <li>自动配车优先利用可用车辆并回收富余配属。提速车型可以在低速线路运行，新增短站台影响既有大编组时会发出提示。</li>
             </ul>
           </div>
         </div>
 
-        <!-- 1.2 -->
+        <div class="log-item">
+          <div class="log-meta">
+            <div class="log-ver">1.3</div>
+            <div class="log-date">2026-11-13</div>
+            <span class="log-badge badge-rel">RELEASE</span>
+          </div>
+          <div class="log-body">
+            <h3>区段提速与车队换新</h3>
+            <ul>
+              <li>按已运营线网里程解锁 100、120、160 km/h，大图采用 100、300、500 公里门槛。</li>
+              <li>支持按区段勾选提速，显示弯道半径、限速和工程报价。</li>
+              <li>出售界面可以一键选择超龄列车，自动配车可以更换超龄车。</li>
+              <li>优化跳月的运营收支结算与界面刷新。</li>
+              <li>片区交通任务按非地铁出行统计，调整目标难度，修正旗标落在水面的情况。</li>
+              <li>可在当前进度重复生成阶段评估海报，覆盖率和客运分担目标随阶段调整，可选挑战不计入评分。</li>
+            </ul>
+          </div>
+        </div>
+
         <div class="log-item">
           <div class="log-meta">
             <div class="log-ver">1.2</div>
-            <div class="log-date">2026-11-12 · 已上线</div>
+            <div class="log-date">2026-11-12</div>
             <span class="log-badge badge-rel">RELEASE</span>
           </div>
           <div class="log-body">
-            <h3>v2.7 引擎整合、全图复核与天津</h3>
-            <p class="log-lead">游戏内引擎版本对齐原版 <strong>2.7.0</strong>，社区发行版版本仍按自己的序列独立递增为 <strong>1.2</strong>。存档结构与规则修订号未变，旧档可以直接继续游玩。本作依旧是社区修改版，不是官方版本。</p>
-
-            <div class="log-group">
-              <h4>引擎整合与复核</h4>
-              <ul>
-                <li>整合原版 v2.7 的<strong>新版线路图与线网成长回放、城市总评、城市特色机制库</strong>，以及地铁芯里的票价管理与车站批量操作。</li>
-                <li>逐条补回九张原有地图在 2.7 中的城市特色与史实，每条先经校验再写入；依赖深港口岸连接与硬编码格坐标的条目未启用，社区版原有数据一条未删。</li>
-                <li><strong>历史事件</strong>：逐图核对日期、游戏内效果与资料来源；天津 13 条事件含开局说明与 12 条带来源的史实。</li>
-                <li><strong>票价与财政</strong>：逐图比对开局票价、里程票制、起始资金与月拨款。原版 2.7 把深圳、杭州默认票价由 2 调到 3，但同时重算了造价、拨款与 GDP；社区版 1.1 是按各自史实开局单独校准过整套财政的，只改票价会破坏平衡，因此保留社区版 <strong>2 元起步价</strong>。天津按同年代同规模的苏州口径校准。另核对 2.7 引擎的开局票制变化：新开局默认按里程计费，<code>fareDefault</code> 只决定起步价与加价基准，巴黎、纽约、北京、伦敦等 <code>dist: false</code> 的城市仍是全程统一票价。</li>
-                <li><strong>热点地区</strong>：伦敦 67 处设施复核无缺漏；其余地图补齐知名但遗漏的地点，市中心 3 格内重叠设施合并、外围空白片区补点，合计补充与调整 <strong>158 处</strong>，校验异常 0 项。</li>
-              </ul>
-            </div>
-
-            <div class="log-group">
-              <h4>地图与性能</h4>
-              <ul>
-                <li>新增<strong>天津（2004 年起）</strong>：从既有线停运改造、津滨轻轨即将通车的年代开局，海河两岸、滨海新区、天津港与滨海国际机场分期进入版图。</li>
-                <li>同期纳入<strong>伦敦（1860 年起）</strong>与本地制作的<strong>成都、重庆</strong>；当前共 <strong>19 张可游玩地图</strong>（18 座真实城市 + 青湾教程）。</li>
-                <li>线性插值区间缓存、设施按 id 的 <code>Map</code> 索引、等距视图地标分组与接驳口列表缓存，减少每帧重复分配与全表遍历；不调整分帧与重绘策略，不改变存档格式。</li>
-              </ul>
-            </div>
-
-            <div class="log-group">
-              <h4>验证与发布</h4>
-              <ul>
-                <li>天津轻量检查 0 ERROR / 0 WARN；热点、城市特色、引用完整性逐图校验通过；源码与发布目录的资源清单、许可副本双端一致。</li>
-                <li>全图无头浏览器开档验收，浏览器异常 0；成品推送发布仓库 <code>main</code> 分支并重新直传 Cloudflare Pages，正式地址与 GitHub Pages 镜像不变。</li>
-              </ul>
-            </div>
+            <h3>地图来源、线网回放与城市评估</h3>
+            <ul>
+              <li>深圳由 Starry 社区版先行制作，后结合原作者深圳图的部分历史任务、设施坐标和机场跑道资料，重新核对历史票价、任务与热点。</li>
+              <li>伦敦 1860 剧本和底图直接移植自 VinsonFung 原版，社区版复核设施和热点配置。</li>
+              <li>加入天津、成都和重庆剧本，并复核各城历史事件、设施与开局财政。</li>
+              <li>从原版引入线网成长回放、线路图导出、城市总评、海报与城市特色专页。</li>
+              <li>沿用原版新版票价管理，并整合车站规模、商业和装修的批量操作。</li>
+              <li>上海修正地图扩展后的任务地名定位、黄浦江纪事判定及部分自动站名，并调整热点与外围人口。</li>
+            </ul>
           </div>
         </div>
 
-        <!-- 1.1 -->
         <div class="log-item">
           <div class="log-meta">
             <div class="log-ver">1.1</div>
-            <div class="log-date">2026-11-11 · 已上线</div>
+            <div class="log-date">2026-11-11</div>
             <span class="log-badge badge-rel">RELEASE</span>
           </div>
           <div class="log-body">
-            <h3>纽约都会区与全图票价核对</h3>
-
-            <div class="log-group">
-              <h4>地图与历史</h4>
-              <ul>
-                <li><strong>新增纽约 1990 剧本</strong>：可以接手简化的地铁、PATH 和斯塔滕岛铁路骨干，也可以选择从零建设。</li>
-                <li>修复<strong>哈德逊河水面显示</strong>与<strong>铁路枢纽重复标注</strong>，补充行政区、街区地名及中文自动站名。</li>
-                <li>补充剧本阶段事件：世贸中心 PATH 车站恢复服务、肯尼迪机场 AirTrain、7 号线延伸至哈德逊广场、第二大道地铁首期、中央车站接入长岛铁路。</li>
-              </ul>
-            </div>
-
-            <div class="log-group">
-              <h4>票价与财政</h4>
-              <ul>
-                <li>核对<strong>全部 15 张地图</strong>的开局票价和拨款配置。</li>
-                <li>调整<strong>纽约、北京、新加坡、深圳、杭州</strong>的默认票价。</li>
-                <li>纽约采用 1990 年的 <strong>1.15 美元统一票价</strong>；同步调整中期拨款，缓解造价上涨带来的建设能力下降。</li>
-              </ul>
-            </div>
-
-            <div class="log-group">
-              <h4>验证</h4>
-              <ul>
-                <li>通过 15 张地图的配置检查。</li>
-                <li>通过纽约预置站名、新站自动命名、旧档英文站名转换测试。</li>
-                <li>源码与发布目录均通过资源校验：<strong>15 张地图 / 107 个文件</strong>。</li>
-              </ul>
-            </div>
-
-            <div class="log-group">
-              <h4>部署与访问</h4>
-              <ul>
-                <li><strong>正式地址已上线：<a href="https://city-and-metro-starry.pages.dev/" target="_blank" rel="noopener">city-and-metro-starry.pages.dev</a></strong>，打开即玩、无需安装。2026-11-11 创建同名 Cloudflare Pages 项目（生产分支 <code>main</code>）并直传 <strong>127 个静态文件</strong>。</li>
-                <li>游戏成品推送在 <a href="https://github.com/starrysky1418/city-and-metro-starry" target="_blank" rel="noopener">starrysky1418/city-and-metro-starry</a> 的 <code>main</code> 分支；<a href="https://starrysky1418.github.io/city-and-metro-starry/" target="_blank" rel="noopener">GitHub Pages 镜像</a>同步可用。本站介绍页与更新日志发布于 <code>/site/</code>。</li>
-                <li>线上抽查：首页、<code>/site/changelog.html</code>、<code>js/data_ny.js</code>、<code>js/geo_ny.js</code>（5.9 MB）、宣传片（21 MB）均返回 200；缓存与安全响应头生效，未知路径返回 404。</li>
-                <li>仓库内置默认关闭的 Actions 直传工作流；配置 Cloudflare 凭据并打开 <code>CF_DIRECT_UPLOAD</code> 开关后，每次 push 会自动重新部署。项目名、输出目录 <code>/</code> 与操作步骤见仓库 <code>DEPLOYMENT.md</code>。</li>
-                <li>纯静态部署：无后端、无账号与登录，存档保存在浏览器本地。</li>
-                <li>2026-11-12 补充：介绍视频<a href="https://www.bilibili.com/video/BV1dnWU6xECS/" target="_blank" rel="noopener">《城市与地铁-社区版by starry》（B站）↗</a>已发布；游戏启动页、本站导航与页脚的 B站入口由「即将发布」占位改为正式链接，宣传片图廊同步加入跳转入口。</li>
-              </ul>
-            </div>
+            <h3>纽约剧本与开局票价</h3>
+            <ul>
+              <li>纽约剧本支持接手简化的既有轨道网络，也可以从零建设。</li>
+              <li>修正哈德逊河水面与中央车站、宾夕法尼亚车站的重复标注。</li>
+              <li>补充纽约街区地名和中文车站名。</li>
+              <li>补充肯尼迪机场 AirTrain、世贸中心 PATH 等历史事件。</li>
+              <li>复核各城市开局票价及拨款，纽约采用 1990 年的 1.15 美元统一票价。</li>
+              <li>社区版上线 Cloudflare Pages，并提供 GitHub Pages 镜像。</li>
+            </ul>
           </div>
         </div>
 
-        <!-- 1.0：作者工作总结原文 -->
         <div class="log-item">
           <div class="log-meta">
             <div class="log-ver">1.0</div>
-            <div class="log-date">Starry 版首版 · 2026-11-11</div>
+            <div class="log-date">2026-11-11</div>
             <span class="log-badge badge-rel">RELEASE</span>
           </div>
           <div class="log-body">
-            <h3>《城市与地铁》Starry 社区版工作总结</h3>
-            <p class="log-lead">以下为作者原文，按网页层级调整了标题级别。</p>
-
-            <p class="log-lead">本项目基于 VinsonFung 开发的浏览器游戏《城市与地铁》，在原版的客流模拟、线网规划和城市经营系统上制作了非商业社区版。主要工作包括新增五座城市剧本、扩展广州和上海地图，以及改进从草案建设到列车调度的操作流程。最直接的变化是，玩家可以先规划整条线路，再按需求和预算选择要开通的区段，并在运营后继续调整车站、运力和商业配置。</p>
-
-            <div class="log-group">
-              <h4>一、原版基础</h4>
-              <p>原版以真实城市和历史年代为背景，提供九座真实城市和青湾教程。玩家可以修建地下、地面和高架线路，设置车站、换乘和列车交路，在经营挑战中平衡建设成本、运营支出、票款、财政拨款和债务。自由建造模式则适合尝试不同线网方案。</p>
-              <p>原版已经具备建设效果预测、居住与就业分布、客流与拥堵分析、历史事件、分期开放、政府合同和站内商业等机制。居民会根据线路可达性、出行时间和票价选择交通方式，城市人口和就业也会随年代及交通条件变化。这些系统构成了社区地图和功能扩展的基础。</p>
-            </div>
-
-            <div class="log-group">
-              <h4>二、地图与城市剧本</h4>
-              <ul>
-                <li><strong>新增五座城市。</strong> 新加坡从 1985 年开始，围绕新镇连网、滨海湾与裕廊岛填海展开。深圳和南京从 2000 年开始，分别加入深圳机场航站楼迁移、大运会，以及南京青奥会、江北新区等阶段内容。苏州从 2010 年开始，覆盖吴江、昆山城区和苏南硕放机场。纽约从 1990 年开始，可以接手简化的地铁、PATH 和斯塔滕岛铁路骨干，也可以选择从零建设。</li>
-                <li><strong>补充广州和上海外围走廊。</strong> 广州扩展至佛山核心区、花都、从化城区、增城和南沙等方向，补上黄埔至增城之间的建设走廊。上海补充嘉定、青浦、松江、金山、奉贤、临港及昆山方向。</li>
-                <li><strong>完善地图细节和剧本配置。</strong> 使用 OpenStreetMap 地理数据绘制道路、岸线和地标，按剧本设置人口、岗位、枢纽需求、开放年份及历史事件。深圳、新加坡和南京加入合同机制。部分自由度较高的片区覆盖目标改为可选挑战。纽约修复哈德逊河水面显示和铁路枢纽重复标注，补充行政区、街区地名及中文自动站名。</li>
-              </ul>
-            </div>
-
-            <div class="log-group">
-              <h4>三、建设与运营功能</h4>
-              <table class="log-table">
-                <thead><tr><th>改进方向</th><th>完成内容</th></tr></thead>
-                <tbody>
-                  <tr><td>草案与分段开通</td><td>按线路归组草案，显示区段预算，由玩家选择先建哪些新建区段。允许同一条线从不同端推进，自动编号避开已使用的线路名。</td></tr>
-                  <tr><td>车站与区间改造</td><td>支持调整车站平面位置和标高，已建车站改造需支付费用。增加大型枢纽扩容，并允许在同一站间区段设置地下、地面和高架之间的高程变化。</td></tr>
-                  <tr><td>商业与列车管理</td><td>在车站总览查看商业预测并批量开发选中的车站。列车界面集中显示可用车型和各线配车，可开启每月自动购买缺失列车。</td></tr>
-                  <tr><td>客流与命名</td><td>车站详情分列进站、出站和站内换乘，展示站外换乘的步行距离、预计时间和客流。中国城市的自动站名优先选用合适的道路名，社区名作为后备。</td></tr>
-                  <tr><td>票价与财政</td><td>核对全部 15 张地图的开局票价和拨款配置，调整纽约、北京、新加坡、深圳和杭州的默认票价。纽约采用 1990 年的 1.15 美元统一票价，并调整中期拨款，缓解造价上涨带来的建设能力下降。</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="log-group">
-              <h4>四、版本交付与验证</h4>
-              <p>整理了 <strong>Starry 版 1.0</strong> 的更新日志、原作者署名、许可证和第三方资料说明，并制作了宣传片，展示深圳、苏州、新加坡和南京地图，以及分段开通、车站标高和位置调整、批量商业开发等操作。首版更新日志记录了新加坡、深圳、南京、苏州及广州、上海扩图。纽约和最近一轮票价调整已纳入本地开发版本。</p>
-              <p>地图和功能迭代结合实际游玩反馈进行。最近一轮通过了 15 张地图的配置检查，以及纽约预置站名、新站自动命名和旧档英文站名转换测试。地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价。</p>
-            </div>
-
-            <div class="log-source">
-              <strong>项目署名</strong>　原作由 VinsonFung 开发，Starry 为非商业社区修改版。<br>
-              <a href="https://city-and-metro.pages.dev" target="_blank" rel="noopener">原版游戏 ↗</a> · <a href="https://github.com/VinsonFung/city-and-metro" target="_blank" rel="noopener">原始仓库 ↗</a>
-            </div>
+            <h3>社区版首发</h3>
+            <ul>
+              <li>新增苏州、深圳、南京和新加坡地图。</li>
+              <li>扩展广州与上海的外围建设范围。</li>
+              <li>草案支持选择区段建设，线路可以从两端分别推进。</li>
+              <li>可付费改造既有车站的位置、标高和容量。</li>
+              <li>两站之间可以设置地下、地面和高架的过渡。</li>
+              <li>新增列车总览与自动购车，以及车站商业预测和批量开发。</li>
+            </ul>
           </div>
         </div>
 
       </div>
-
-      <!-- 方法说明 -->
-      <div class="legacy" style="margin-top:28px">
-        <h3>关于数据与验证</h3>
-        <p>地图人口、岗位和财政采用剧本参数，历史资料用于校准关键年份、设施和票价；开通年份参照公开年表，客流、造价与几何量中的估算部分在仓库的第三方资料说明里标注来源。每轮迭代会检查全部地图的开局配置，并对预置站名、自动命名与旧存档迁移做专项测试。</p>
-        <div class="chips">
-          <span class="chip">19 张地图配置检查</span><span class="chip">预置站名测试</span>
-          <span class="chip">新站自动命名测试</span><span class="chip">旧档英文站名转换测试</span>
-          <span class="chip">OpenStreetMap · ODbL 1.0</span>
-        </div>
-      </div>
-
-      <!-- 署名 -->
-      <div class="notice" style="margin-top:28px">
-        <span class="ic">ⓘ</span>
-        <div><strong>原作由 VinsonFung 开发，Starry 为非商业社区修改版。</strong> 原版及社区改版均严禁商业使用；发布时须保留原作者署名、原版链接、许可证与第三方资料声明，并清楚标明社区改版身份。<a href="index.html#credits">查看完整署名 →</a></div>
-      </div>
-
     </div>
   </section>
 

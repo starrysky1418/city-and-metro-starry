@@ -3333,7 +3333,7 @@
       alpha *= lyrDim;
       if (s.type !== rank) { flush(); rank = s.type; }
       const arr = P.arr(cs);
-      let plain = far;
+      let plain = far && !cs.g.tunnel;
       if (!plain && s.type === 'underground') { const d = this.segDeco(cs); plain = !d.water.length && !d.ground.length && !d.high.length && !d.raised && (z < 16 || !d.rails.length) && d.buried.length === 1 && d.buried[0][0] === 0 && d.buried[0][1] === arr.length / 2 - 1; }
       if (plain) {
         const key = col + '|' + alpha + '|' + width + (s.type === rank ? '' : s.type);
@@ -3470,7 +3470,8 @@
     if (draft && !ix.changed) {
       ix.changed = new Set();
       C.segs.forEach(function (cs) {
-        const s = cs.seg, o = g.net.segments[s.id], A = C.net.stations[s.a], B = C.net.stations[s.b];
+        const s = cs.seg; if (C.net.lines[s.line]?.rail) return;
+        const o = g.net.segments[s.id], A = C.net.stations[s.a], B = C.net.stations[s.b];
         if (!o || o.type !== s.type || JSON.stringify(o.transition) !== JSON.stringify(s.transition) || JSON.stringify(o.pts) !== JSON.stringify(s.pts) || g.net.stations[s.a].x !== A.x || g.net.stations[s.a].y !== A.y || !g.net.stations[s.b] || g.net.stations[s.b].x !== B.x || g.net.stations[s.b].y !== B.y) ix.changed.add(s.id);
       });
     }
@@ -3489,11 +3490,20 @@
       const stPx = this.stPx;
       for (let i = 0; i < C.stations.length; i++) {
         const s = C.stations[i], p = stPx[i]; if (!p) continue;
-        if (draft && !g.net.stations[s.id]) {
+        if (draft && !s.rail && !g.net.stations[s.id]) {
           ctx.strokeStyle = 'rgba(30,136,229,0.9)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.lineDashOffset = -this.time * 10;
           ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.lineDashOffset = 0;
         }
         if (sel && sel.kind === 'station' && sel.id === s.id) {
+          if (s.hillEntrance) {
+            const [x, y, height] = s.hillEntrance;
+            const q = this.P(x, y, 0);
+            ctx.strokeStyle = '#1e88e5'; ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = '#1e88e5'; ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.save(); ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillText(height > 0 ? '高入口' : '低入口', q.x + 7, q.y + 4); ctx.restore();
+          }
           const pulse = 0.5 + 0.5 * Math.sin(this.time * 4);
           ctx.strokeStyle = 'rgba(30,136,229,' + (0.5 + 0.4 * pulse) + ')'; ctx.lineWidth = 2.5;
           ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 5 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
@@ -3521,9 +3531,10 @@
     const wet = new Uint8Array(n);
     for (let i = 0; i < n; i++) wet[i] = city.waterDistAt(pts[i][0], pts[i][1]) < 0 ? 1 : 0;
     const elevH = CFG.metro.height.elevated;
+    const inTunnel = i => cs.g.tunnel && cum[i] * CFG.CELL_M >= cs.g.tunnel[0] && cum[i] * CFG.CELL_M <= cs.g.tunnel[1];
     // 桥墩：高出地面的部分约每 50 m 一座，水中约每 100 m
     const piers = []; let next = -1, raised = false;
-    for (let i = 0; i < n; i++) if (hs[i] > DECO_FLAT * 3) { raised = true; if (cum[i] >= next) { piers.push(i); next = cum[i] + (wet[i] ? 0.4 : 0.2); } }
+    for (let i = 0; i < n; i++) if (!inTunnel(i) && hs[i] > DECO_FLAT * 3) { raised = true; if (cum[i] >= next) { piers.push(i); next = cum[i] + (wet[i] ? 0.4 : 0.2); } }
     // 与运营中铁路的交叉：取铁路在交叉点的走向
     const rails = [];
     for (const kind of ['railSurf', 'railVia']) for (const p of cs.g[kind] || []) {
@@ -3536,10 +3547,10 @@
     d = {
       tv: tv, wet: wet, piers: piers, raised: raised, rails: rails,
       water: decoRuns(n, function (i) { return wet[i] === 1; }),
-      buried: decoRuns(n, function (i) { return hs[i] < DECO_BURIED; }),
-      ground: decoRuns(n, function (i) { return Math.abs(hs[i]) <= DECO_FLAT; }),
-      high: decoRuns(n, function (i) { return hs[i] > DECO_FLAT; }),
-      ramp: decoRuns(n, function (i) { return hs[i] > DECO_FLAT && hs[i] < elevH - DECO_FLAT; }),
+      buried: decoRuns(n, function (i) { return inTunnel(i) || hs[i] < DECO_BURIED; }),
+      ground: decoRuns(n, function (i) { return !inTunnel(i) && Math.abs(hs[i]) <= DECO_FLAT; }),
+      high: decoRuns(n, function (i) { return !inTunnel(i) && hs[i] > DECO_FLAT; }),
+      ramp: decoRuns(n, function (i) { return !inTunnel(i) && hs[i] > DECO_FLAT && hs[i] < elevH - DECO_FLAT; }),
     };
     this.segDecos.set(cs, d);
     return d;
@@ -3609,7 +3620,7 @@
   // batched：隧道外廓与越江隧道已在 drawMetro 中合并描边
   Renderer.prototype.drawTrack = function (ctx, cs, arr, col, alpha, width, under, t, batched) {
     const s = cs.seg, z = this.z;
-    if (z < 12 || under >= 0.5) {
+    if ((z < 12 && !cs.g.tunnel) || under >= 0.5) {
       // 远景与地下视图：原有画法（衬边 + 线路色 + 地面虚线 / 地下点线）
       if (s.type === 'elevated' && t > 0.05) this.drawRaisedBase(ctx, cs, arr, alpha, width, t, null);
       ctx.globalAlpha = alpha;
@@ -5371,7 +5382,7 @@
     if (!this.stPx) return null;
     let best = null, bd = 1e9;
     for (const p of this.stPx) {
-      if (!p) continue;
+      if (!p || !this.game.net.stations[p.id] && !this.game.draft?.net.stations[p.id]) continue;
       const d = Math.hypot(p.x - sx, p.y - sy);
       if (d < p.r + 7 && d < bd) { bd = d; best = p.id; }
     }
@@ -5381,7 +5392,8 @@
     if (!this.segPx) return null;
     tol = tol || 7;
     let best = null, bd = tol;
-    this.segPx.forEach(function (arr, id) {
+    this.segPx.forEach((arr, id) => {
+      if (!this.game.net.segments[id] && !this.game.draft?.net.segments[id]) return;
       for (let i = 0; i + 3 < arr.length; i += 2) {
         const d = U.distToSeg(sx, sy, arr[i], arr[i + 1], arr[i + 2], arr[i + 3]);
         if (d < bd) { bd = d; best = id; }

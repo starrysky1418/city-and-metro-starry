@@ -186,11 +186,15 @@
     ],
     runways: [...pair(2004, false), ...pair(2009, true)],
     roadYears: {}, bridgeYears: {}, bridgeDefaultYear: 2004, simRoads: [],
+    traits: [
+      { use: 'finance', flavor: 'cn' },
+      { use: 'commuteCorridor', star: true, label: '市区与滨海双中心', text: '先修塘沽本地线或先连市区，都能让已通车一带更早发展。', why: '以市区和滨海的空间布局为基础，走廊权重为游戏设定。', effect: '2004 年先加强塘沽往返东海路的通勤与购物去向，2011 年起加强天津站方向，2015 年起进一步加强市区往返滨海。提前通车会提高塘沽、东海路及开放后的滨海核心站口周边增长权重。' },
+    ],
     eras: [
-      { id: 'tj-start', from: 2004, name: '双核起步', tag: '模拟', summary: '市区地铁停运改造，津滨轻轨独自连接中心城区与滨海。', grow: { jobs: { laocheng: 1.2, tanggu: 1.25 } } },
-      { id: 'tj-network', from: 2011, name: '市区成网', tag: '模拟', summary: '1、2、3、9 号线与高铁枢纽把海河两岸串起来。', grow: { pop: { nankai: 1.25, hedong: 1.3 }, jobs: { dongli: 1.4 } } },
-      { id: 'tj-binhai', from: 2015, name: '滨海与自贸', tag: '模拟', summary: '自贸区、T2 航站楼与于家堡带来新的长距离接驳需求。', grow: { jobs: { binhai: 1.4, gangkou: 1.3 } } },
-      { id: 'tj-region', from: 2030, name: '市域连网', tag: '模拟', summary: '武清、静海与生态城方向继续加密。', grow: { jobs: { wuqing: 1.25, ecocity: 1.3 } } },
+      { id: 'tj-start', from: 2004, name: '双核起步', tag: '模拟', summary: '塘沽与东海路已有本地需求，提前通车可带动沿站人口和岗位增长。', grow: { jobs: { laocheng: 1.2, tanggu: 1.25 } }, railGrowth: { pop: { tanggu: 1.25, donghailu: 1.2 }, jobs: { tanggu: 1.25, donghailu: 1.2 } }, corridors: [{ a: 'tanggu', b: 'donghailu', f: 1.25 }, { a: 'zhongshanmen', b: 'tanggu', f: 1.12 }] },
+      { id: 'tj-network', from: 2011, name: '市区成网', tag: '模拟', summary: '1、2、3、9 号线与高铁枢纽把海河两岸串起来。', grow: { pop: { nankai: 1.25, hedong: 1.3 }, jobs: { dongli: 1.4 } }, railGrowth: { pop: { tanggu: 1.2, binhai: 1.25 }, jobs: { tanggu: 1.25, binhai: 1.35 } }, corridors: [{ a: 'tanggu', b: 'donghailu', f: 1.25 }, { a: 'hedong', b: 'tanggu', f: 1.22 }] },
+      { id: 'tj-binhai', from: 2015, name: '滨海与自贸', tag: '模拟', summary: '自贸区、T2 航站楼与于家堡带来新的长距离接驳需求。', grow: { jobs: { binhai: 1.55, gangkou: 1.3 } }, railGrowth: { pop: { binhai: 1.15 }, jobs: { binhai: 1.2 } }, corridors: [{ a: 'tanggu', b: 'binhai', f: 1.25 }, { a: 'hedong', b: 'binhai', f: 1.35 }, { a: 'xiaobailou', b: 'binhai', f: 1.25 }] },
+      { id: 'tj-region', from: 2030, name: '市域连网', tag: '模拟', summary: '武清、静海与生态城方向继续加密。', grow: { jobs: { wuqing: 1.25, ecocity: 1.3 } }, corridors: [{ a: 'tanggu', b: 'binhai', f: 1.25 }, { a: 'hedong', b: 'binhai', f: 1.35 }, { a: 'xiaobailou', b: 'binhai', f: 1.25 }, { a: 'ecocity', b: 'binhai', f: 1.25 }] },
     ],
     // 关键史实表：真实日期 y/m/d、游戏内效果 fx、资料来源 src，逐条用 `check-map.mjs tj --facts` 核对。
     // events[0] 必须是开局当月的开场说明（game.js 用它写开局日志，milestones.js 用它的 desc 作开场描述）。
@@ -253,7 +257,7 @@
     facts: [['范围', geo.w / 4 + ' km × ' + geo.h / 4 + ' km'], ['起始', '2004 年'], ['人口', '约 860 万'], ['货币', '人民币']],
     features: [
       ['wave', '海河穿城', '老城、租界与河东被海河分开，跨河通道决定站位与造价'],
-      ['map', '双核城市', '中心城区与滨海新区相距约 50 km，津滨轻轨是开局唯一走廊'],
+      ['map', '双核城市', '中心城区与滨海新区相距约 50 km，可沿津滨走廊分期建设'],
       ['plane', '航站楼分期', '滨海机场开局可接，T1 于 2008 年启用，东跑道 2009 年投运，T2 于 2014 年启用'],
       ['building', '高铁与港口', '天津站开局可接，西站/南站 2011、自贸区 2015 陆续投用'],
     ],

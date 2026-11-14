@@ -66,12 +66,16 @@
     const key = Math.round(t * 12) + ':' + city.regions.length;
     if (city._eraF && city._eraF.key === key) return city._eraF;
     const R = city.regions.length, pop = new Float32Array(R).fill(1), jobs = new Float32Array(R).fill(1), relocJ = new Float32Array(R), relocP = new Float32Array(R);
+    const railPop = new Float32Array(R).fill(1), railJobs = new Float32Array(R).fill(1);
     const idx = new Map(); city.regions.forEach(function (r, k) { idx.set(r.id, k); });
     const w = Eras.weights(t);
     if (w) {
       const P = blendMap(w, function (e) { return e.grow && e.grow.pop; }), J = blendMap(w, function (e) { return e.grow && e.grow.jobs; });
       for (const id in P) if (idx.has(id)) pop[idx.get(id)] = P[id];
       for (const id in J) if (idx.has(id)) jobs[idx.get(id)] = J[id];
+      const RP = blendMap(w, e => e.railGrowth?.pop), RJ = blendMap(w, e => e.railGrowth?.jobs);
+      for (const id in RP) if (idx.has(id)) railPop[idx.get(id)] = RP[id];
+      for (const id in RJ) if (idx.has(id)) railJobs[idx.get(id)] = RJ[id];
       const L = list();
       for (let k = 0; k < L.length; k++) {
         if (!w[k]) continue;
@@ -90,7 +94,7 @@
       const lv = fxLevel(t, f.ym[0] + (f.ym[1] - 1) / 12, f.grow.years, 2); if (!(lv > 0)) continue;
       for (const id of [].concat(f.grow.region)) { if (!idx.has(id)) continue; const k = idx.get(id); if (f.grow.pop) pop[k] *= Math.pow(f.grow.pop, lv); if (f.grow.jobs) jobs[k] *= Math.pow(f.grow.jobs, lv); }
     }
-    city._eraF = { key: key, pop: pop, jobs: jobs, relocJ: relocJ, relocP: relocP };
+    city._eraF = { key: key, pop: pop, jobs: jobs, relocJ: relocJ, relocP: relocP, railPop, railJobs };
     return city._eraF;
   };
 

@@ -6,6 +6,7 @@
   const U = CM.U, M = CM.Metro, h = U.h, AX = CM.Accessibility;
   const SN = 22;   // 每段路线的取样点数
   let A = null, S = null, preparing = null;
+  let recording = null;
 
   const timeOf = function (b, fb) { return b ? b[0] + (b[1] - 1) / 12 : fb; };
   const ease = function (x) { x = U.clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -226,6 +227,8 @@
       if (!base.N) return null;
       const F = { t: H.T1, pos: new Map(), hub: new Map(), route: new Map() };
       for (const sid in H.stations) { const s = H.stations[sid], p = base.base(s.x, s.y); F.pos.set(sid, p); F.hub.set(sid, A.hubGeom(p[0], p[1], null)); }
+      const points = Object.keys(H.stations).map(id => [H.stations[id].x, H.stations[id].y]);
+      if (points.length >= 2) F.water = A.waterLayer(points, Array.from(F.pos.values()), 4);
       M.withSegIndex([all], function () { for (const x of H.segs) F.route.set(x.id, resample(base.base.path(M.segGeom(all, x.s, g.city).pts))); });
       frames = [F];
     } else {
@@ -298,12 +301,12 @@
     c.moveTo(x - gs, y - h0); c.lineTo(x + gs, y - h0); c.lineTo(x + gs - hd, y - h0 - hd);
     c.moveTo(x + gs, y + h0); c.lineTo(x - gs, y + h0); c.lineTo(x - gs + hd, y + h0 + hd); c.stroke();
   }
-  function paint(dt) {
-    const D = S.D, cv = S.cv, c = S.ctx, host = A.canvas(); if (!host) return;
-    const cw = host.clientWidth, ch = host.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  function paint(dt, state = S) {
+    const D = state.D, cv = state.cv, c = state.ctx, host = A.canvas(); if (!host) return;
+    const cw = state.video ? cv.width : host.clientWidth, ch = state.video ? cv.height : host.clientHeight, dpr = state.video ? 1 : Math.min(2, window.devicePixelRatio || 1);
     if (!cw || !ch) return;
     if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
-    const p = S.p, T = Math.min(D.H.now, D.W.p2t(p)), fr = frameAt(D, p), P = S.P, H = D.H;
+    const p = state.p, T = Math.min(D.H.now, D.W.p2t(p)), fr = frameAt(D, p), P = state.P, H = D.H;
     const lerpP = function (sid) { const a = fr.a.pos.get(sid), b = fr.b.pos.get(sid); if (!a) return b; if (!b) return a; return [a[0] + (b[0] - a[0]) * fr.s, a[1] + (b[1] - a[1]) * fr.s]; };
     // 可见区段和车站
     const vis = [], stLines = new Map();
@@ -319,25 +322,26 @@
       for (const e of [[x.a, x.from === x.a || reached], [x.b, x.from === x.b || reached]]) { if (!e[1]) continue; let l = stLines.get(e[0]); if (!l) stLines.set(e[0], l = []); if (l.indexOf(x.line) < 0) l.push(x.line); }
     }
     // 镜头跟随线网生长
-    const V = A.view();
-    S.cameraMoving = false;
-    if (S.follow && V) {
+    const V = state.video ? state.view : A.view();
+    state.cameraMoving = false;
+    if (state.follow && V) {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       stLines.forEach(function (l, sid) { const q = lerpP(sid); if (!q) return; x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); });
       if (x0 < Infinity) {
         const pad = 150, minW = 1200, bw = Math.max(minW, x1 - x0 + pad * 2), bh = Math.max(minW * ch / cw, y1 - y0 + pad * 2), sc = Math.min(cw / bw, Math.max(120, ch - 96) / bh), tw = cw / sc, th = ch / sc, tx = (x0 + x1) / 2 - tw / 2, ty = (y0 + y1) / 2 - th / 2 + 34 / sc;
-        S.cameraMoving = !S.snap && Math.max(Math.abs(tx - V.x), Math.abs(ty - V.y), Math.abs(tw - V.w), Math.abs(th - V.h)) > tw * 0.0001;
-        const k = S.snap || !S.cameraMoving || (CM.Settings && CM.Settings.reducedMotion()) ? 1 : 1 - Math.exp(-dt * 2.4);
-        if (k === 1) S.cameraMoving = false;
-        V.x += (tx - V.x) * k; V.y += (ty - V.y) * k; V.w += (tw - V.w) * k; V.h += (th - V.h) * k; S.snap = false;
-        A.setView();
+        state.cameraMoving = !state.snap && Math.max(Math.abs(tx - V.x), Math.abs(ty - V.y), Math.abs(tw - V.w), Math.abs(th - V.h)) > tw * 0.0001;
+        const k = state.snap || !state.cameraMoving || (CM.Settings && CM.Settings.reducedMotion()) ? 1 : 1 - Math.exp(-dt * 2.4);
+        if (k === 1) state.cameraMoving = false;
+        V.x += (tx - V.x) * k; V.y += (ty - V.y) * k; V.w += (tw - V.w) * k; V.h += (th - V.h) * k; state.snap = false;
+        if (!state.video) A.setView();
       }
     }
     const sc = Math.min(cw / V.w, ch / V.h), ox = (cw - V.w * sc) / 2 - V.x * sc, oy = (ch - V.h * sc) / 2 - V.y * sc;
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cw, ch);
+    if (state.video) { c.fillStyle = P.paper; c.fillRect(0, 0, cw, ch); }
     c.setTransform(dpr * sc, 0, 0, dpr * sc, dpr * ox, dpr * oy);
     const geo = A.geographic(), LW = geo ? 8.5 : 11;
-    if (!geo) drawWater(c, fr, P);
+    if (!geo || state.video) drawWater(c, fr, P);
     // 路线
     const pts = new Float32Array(SN * 2);
     const trace = function (o) {
@@ -387,33 +391,43 @@
         if (!l.hub && px < 9) continue;
         if (l.x < x0 || l.x > x1 || l.y < y0 || l.y > y1) continue;
         c.font = (l.hub ? '700 ' : '500 ') + '20px ' + font;
-        const name = CM.I18n ? CM.I18n.text(String(l.name)) : l.name, w = S.tw.get(name + l.hub) || (S.tw.set(name + l.hub, c.measureText(name).width), S.tw.get(name + l.hub)), gap = l.r + 6;
-        const sides = [[l.x + gap, l.y, 'left'], [l.x, l.y - gap - 11, 'center'], [l.x - gap, l.y, 'right'], [l.x, l.y + gap + 11, 'center']], dir = stDir.get(l.sid), natural = dir && Math.abs(dir[1]) * 2.4 < Math.abs(dir[0]) ? 1 : 0, pref = S.side.has(l.sid) ? S.side.get(l.sid) : natural;
+        const name = CM.I18n ? CM.I18n.text(String(l.name)) : l.name, w = state.tw.get(name + l.hub) || (state.tw.set(name + l.hub, c.measureText(name).width), state.tw.get(name + l.hub)), gap = l.r + 6;
+        const sides = [[l.x + gap, l.y, 'left'], [l.x, l.y - gap - 11, 'center'], [l.x - gap, l.y, 'right'], [l.x, l.y + gap + 11, 'center']], dir = stDir.get(l.sid), natural = dir && Math.abs(dir[1]) * 2.4 < Math.abs(dir[0]) ? 1 : 0, pref = state.side.has(l.sid) ? state.side.get(l.sid) : natural;
         let placed = false;
         for (let k = 0; k < 4 && !placed; k++) {
           const sd = sides[(pref + k) % 4], bx = sd[2] === 'left' ? sd[0] : sd[2] === 'right' ? sd[0] - w : sd[0] - w / 2, b = [bx - 2, sd[1] - 12, bx + w + 2, sd[1] + 12];
           if (hit(b)) continue;
-          boxes.push(b); placed = true; if (k) S.side.set(l.sid, (pref + k) % 4);
+          boxes.push(b); placed = true; if (k) state.side.set(l.sid, (pref + k) % 4);
           c.globalAlpha = l.a; c.textAlign = sd[2]; c.strokeText(name, sd[0], sd[1]); c.fillText(name, sd[0], sd[1]); c.globalAlpha = 1;
         }
       }
     }
-    // 信息
-    const ym = Math.floor(T * 12 + 1e-6);
-    if (ym !== S.lastYM) {
-      S.lastYM = ym;
-      const y = Math.floor(ym / 12), m = ym % 12 + 1, er = eraAt(D.eras, T);
-      S.hud.year.textContent = y + ' 年 ' + m + ' 月';
-      if (er && er !== S.lastEra) { S.lastEra = er; S.hud.era.textContent = er.name; S.hud.era.classList.remove('flash'); void S.hud.era.offsetWidth; S.hud.era.classList.add('flash'); }
-      if (CM.I18n) { CM.I18n.localize(S.hud.box); }
-    }
+    const ym = Math.floor(T * 12 + 1e-6), y = Math.floor(ym / 12), m = ym % 12 + 1;
+    const date = y + ' 年 ' + m + ' 月', er = eraAt(D.eras, T);
     const lineSet = new Set(); let km = 0; for (const o of vis) { lineSet.add(o.x.line); km += (D.km.get(o.x.base) || 0) * o.g; }
     const stat = lineSet.size + ' 条线路 · ' + stLines.size + ' 座车站' + (D.kmOK ? ' · ' + km.toFixed(0) + ' km' : '');
-    if (stat !== S.lastStat) { S.lastStat = stat; S.hud.stat.textContent = stat; if (CM.I18n) CM.I18n.localize(S.hud.stat); }
+    if (state.video) {
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.fillStyle = P.paper;
+      c.fillRect(0, 0, cw, 102);
+      c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillStyle = P.text;
+      c.font = '700 30px ' + A.mapFont();
+      c.fillText(state.title + '  ·  ' + date, 38, 37);
+      c.font = '500 22px ' + A.mapFont();
+      c.fillText(stat + (er ? '  ·  ' + er.name : ''), 38, 76, cw - 76);
+      return;
+    }
+    if (ym !== state.lastYM) {
+      state.lastYM = ym;
+      state.hud.year.textContent = date;
+      if (er && er !== state.lastEra) { state.lastEra = er; state.hud.era.textContent = er.name; state.hud.era.classList.remove('flash'); void state.hud.era.offsetWidth; state.hud.era.classList.add('flash'); }
+      if (CM.I18n) CM.I18n.localize(state.hud.box);
+    }
+    if (stat !== state.lastStat) { state.lastStat = stat; state.hud.stat.textContent = stat; if (CM.I18n) CM.I18n.localize(state.hud.stat); }
     // 播报：播放经过的事件；拖动进度时只跳过，不补报
-    while (S.ni < D.news.length && D.news[S.ni].p <= p) { const e = D.news[S.ni++]; if (S.playing && !S.dragging) pushNews(e.text, lineColor(H.lines[e.line])); }
-    while (S.ni > 0 && D.news[S.ni - 1].p > p) S.ni--;
-    if (!S.dragging) S.range.value = Math.round(p * 1000);
+    while (state.ni < D.news.length && D.news[state.ni].p <= p) { const e = D.news[state.ni++]; if (state.playing && !state.dragging) pushNews(e.text, lineColor(H.lines[e.line])); }
+    while (state.ni > 0 && D.news[state.ni - 1].p > p) state.ni--;
+    if (!state.dragging) state.range.value = Math.round(p * 1000);
   }
   function pushNews(text, color) {
     const n = h('div', { class: 'nr-news' }, h('i', { style: { background: color } }), CM.I18n ? CM.I18n.text(text) : text);
@@ -427,6 +441,73 @@
     const dt = Math.min(0.05, (now - (S.last || now)) / 1000); S.last = now;
     if (S.playing && !S.dragging) { S.p = Math.min(1, S.p + dt / S.D.W.dur); S.dirty = true; if (S.p >= 1) { S.playing = false; S.ended = true; syncBtn(); } }
     if (S.dirty || S.cameraMoving) { S.dirty = false; try { paint(dt); } catch (e) { console.error(e); stop(true); } }
+  }
+  function exportVideo(button) {
+    if (recording) { recording.finish(false); return; }
+    const source = S, cv = document.createElement('canvas'), ui = A.ui();
+    if (!source || typeof cv.captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
+      ui?.toast('当前浏览器不支持导出回放视频', 'bad'); return;
+    }
+    cv.width = 1920; cv.height = 1080;
+    const title = (CM.DATA.city || '') + '地铁线网成长回放';
+    const state = { D:source.D, cv, ctx:cv.getContext('2d'), video:true, view:{ ...A.view() },
+      p:0, follow:true, snap:true, P:source.P, tw:new Map(), side:new Map(), title };
+    const parts = [];
+    const mimeType = ['video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(type => MediaRecorder.isTypeSupported?.(type));
+    let recorder, stream;
+    try {
+      stream = cv.captureStream(30);
+      recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond:8000000 });
+      paint(0, state);
+      recorder.start(1000);
+    } catch (err) {
+      stream?.getTracks().forEach(track => track.stop());
+      ui?.toast('视频导出启动失败', 'bad'); return;
+    }
+    const started = performance.now(), duration = state.D.W.dur, wasPlaying = source.playing;
+    let raf, previous = started, save = false;
+    const finish = function (download) {
+      if (!recording) return;
+      save = download;
+      cancelAnimationFrame(raf);
+      if (recorder.state !== 'inactive') recorder.stop();
+      else clean();
+    };
+    const clean = function () {
+      stream.getTracks().forEach(track => track.stop());
+      recording = null;
+      button.textContent = '导出视频';
+      if (S === source) { source.playing = wasPlaying; source.last = 0; syncBtn(); }
+    };
+    recording = { finish };
+    source.playing = false; syncBtn();
+    recorder.ondataavailable = event => { if (event.data.size) parts.push(event.data); };
+    recorder.onerror = () => { save = false; finish(false); ui?.toast('视频导出失败', 'bad'); };
+    recorder.onstop = () => {
+      clean();
+      if (!save) return;
+      if (!parts.length) { ui?.toast('视频没有录制到画面', 'bad'); return; }
+      const type = recorder.mimeType || parts[0].type || 'video/webm';
+      const url = URL.createObjectURL(new Blob(parts, { type }));
+      const link = document.createElement('a');
+      link.href = url; link.download = title + (type.includes('mp4') ? '.mp4' : '.webm');
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      ui?.toast('回放视频已导出', 'good');
+    };
+    const renderFrame = now => {
+      const elapsed = (now - started) / 1000;
+      if (document.hidden) { finish(false); ui?.toast('导出时请保持回放页面可见', 'info'); return; }
+      state.p = Math.min(1, elapsed / duration);
+      try { paint(Math.min(0.1, (now - previous) / 1000), state); }
+      catch (err) { console.error(err); finish(false); ui?.toast('视频绘制失败', 'bad'); return; }
+      previous = now;
+      button.textContent = '取消导出 ' + Math.round(state.p * 100) + '%';
+      if (elapsed >= duration + 1.5) finish(true);
+      else raf = requestAnimationFrame(renderFrame);
+    };
+    button.textContent = '取消导出 0%';
+    raf = requestAnimationFrame(renderFrame);
   }
   function syncBtn() { if (!S) return; S.btn.innerHTML = ''; S.btn.appendChild(CM.icon(S.playing ? 'pause' : 'play')); S.btn.setAttribute('aria-label', S.playing ? '暂停' : '播放'); S.btn.dataset.tip = S.playing ? '暂停' : (S.ended ? '重播' : '播放'); if (CM.I18n) CM.I18n.localize(S.btn); }
 
@@ -444,7 +525,8 @@
     const ticks = h('div', { class: 'nr-ticks' });
     for (const e of D.eras) { if (e.from <= D.H.T0 || e.from >= D.H.T1) continue; ticks.appendChild(h('i', { style: { left: (D.W.t2p(e.from) * 100).toFixed(2) + '%' }, 'data-tip': e.name + ' · ' + Math.floor(e.from) + ' 年起' })); }
     // 只有一种速度（v2.7 玩家反馈：去掉倍速）；没有变化的月份自动快速过去
-    const bar = h('div', { class: 'nr-bar' }, btn, h('div', { class: 'nr-track' }, ticks, range), h('button', { class: 'btn sm', onclick: function () { stop(); } }, '退出回放'));
+    const video = h('button', { class:'btn sm', onclick:() => exportVideo(video) }, '导出视频');
+    const bar = h('div', { class: 'nr-bar' }, btn, h('div', { class: 'nr-track' }, ticks, range), video, h('button', { class: 'btn sm', onclick: function () { stop(); } }, '退出回放'));
     host.append(hud.box, hud.news, bar);
     return { cv: cv, hud: hud, btn: btn, range: range, bar: bar, finishScrub: finishScrub };
   }
@@ -478,6 +560,7 @@
   }
   function stop(silent) {
     if (!S && !preparing) return;
+    if (recording) recording.finish(false);
     if (preparing) { clearTimeout(preparing.timer); preparing.wait.remove(); preparing = null; }
     if (S) { cancelAnimationFrame(S.raf); window.removeEventListener('resize', S.onResize); window.removeEventListener('blur', S.onBlur); if (S.observer) S.observer.disconnect(); }
     const svg = A.svg(); if (svg) svg.classList.remove('replaying');

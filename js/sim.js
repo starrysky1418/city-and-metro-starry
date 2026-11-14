@@ -1160,17 +1160,27 @@
       if (c0 < 0) continue;
       const ci = c0 % city.W, cj = (c0 / city.W) | 0;
       heap.clear(); touched.length = 0;
-      const treeKey = st.x + ':' + st.y;
+      const sources = [[st.x, st.y, 0]];
+      if (st.hillEntrance) {
+        const [x, y, z] = st.hillEntrance;
+        sources.push([x, y, U.dist(st.x, st.y, x, y) * CFG.CELL_M * 0.35 + Math.abs(z) * 3]);
+      }
+      const treeKey = sources.length > 1 ? JSON.stringify(sources) : st.x + ':' + st.y;
       const cachedTree = treeCache.get(treeKey);
       if (cachedTree) {
         trees[k] = cachedTree.tree; accessible[k] = cachedTree.tree.verts.length ? 1 : 0;
         for (let q = 0; q < cachedTree.tree.verts.length; q++) { const v = cachedTree.tree.verts[q]; touched.push(v); D_[v] = cachedTree.exact[q]; }
       } else {
-        const corners = [cj * VW + ci, cj * VW + ci + 1, (cj + 1) * VW + ci, (cj + 1) * VW + ci + 1];
-        for (const v of corners) {
-          if (walk.deg[v] === 0) continue;
-          const d0 = U.dist(st.x, st.y, city.vx[v], city.vy[v]) * CFG.CELL_M;
-          if (d0 < D_[v]) { if (D_[v] >= INF) touched.push(v); D_[v] = d0; pred[v] = -1; heap.push(d0, v); }
+        for (const [x, y, entryCost] of sources) {
+          const cell = city.cellAt(x, y);
+          if (cell < 0) continue;
+          const row = (cell / city.W) | 0, col = cell % city.W;
+          const corner = row * VW + col;
+          for (const v of [corner, corner + 1, corner + VW, corner + VW + 1]) {
+            if (walk.deg[v] === 0) continue;
+            const d0 = entryCost + U.dist(x, y, city.vx[v], city.vy[v]) * CFG.CELL_M;
+            if (d0 < D_[v]) { if (D_[v] >= INF) touched.push(v); D_[v] = d0; pred[v] = -1; heap.push(d0, v); }
+          }
         }
         accessible[k] = heap.n ? 1 : 0;
         while (heap.n) {
@@ -1196,14 +1206,18 @@
       }
       // 只有接入运营线路的车站提供服务：未通车站不计覆盖、不参与接驳与站外换乘
       if (C.serviced && !C.serviced[k]) { for (const v of touched) D_[v] = INF; continue; }
-      // 覆盖格
-      for (let j = Math.max(0, cj - 6); j <= Math.min(city.H - 1, cj + 6); j++) {
-        for (let i = Math.max(0, ci - 6); i <= Math.min(city.W - 1, ci + 6); i++) {
+      // 覆盖格：两处入口的覆盖取并集，每个格只累计一次。
+      const second = sources[1] ? city.cellAt(sources[1][0], sources[1][1]) : -1;
+      const si = second >= 0 ? second % city.W : ci, sj = second >= 0 ? (second / city.W) | 0 : cj;
+      for (let j = Math.max(0, Math.min(cj, sj) - 6); j <= Math.min(city.H - 1, Math.max(cj, sj) + 6); j++) {
+        for (let i = Math.max(0, Math.min(ci, si) - 6); i <= Math.min(city.W - 1, Math.max(ci, si) + 6); i++) {
           const v0 = j * VW + i;
           const c = j * city.W + i;
           const w = city.pop[c] + city.jobs[c];
           let cd = Math.min(D_[v0], D_[v0 + 1], D_[v0 + VW], D_[v0 + VW + 1]) + extra;
-          if (cd > maxM && (w > 0 || cellFac?.has(c) || ringFac?.has(c))) cd = Model.localWalk(city, st.x, st.y, c);
+          if (cd > maxM && (w > 0 || cellFac?.has(c) || ringFac?.has(c))) {
+            for (const [x, y, entryCost] of sources) cd = Math.min(cd, entryCost + Model.localWalk(city, x, y, c));
+          }
           if (cd > maxM) continue;
           accessible[k] = 1;
           if (cd < cellWalk[c]) { cellWalk[c] = cd; cellStation[c] = k; }
@@ -1405,7 +1419,7 @@
     // freqDir：两个方向各自的发车频率（v2.5 车队，环线两个方向可以不同；其余线路两个方向相同）；needDir：不受车数限制时按客流与最低服务水平所需的频率
     P.freq = new Float32Array(R); P.freqDir = new Float32Array(2 * R); P.needDir = new Float32Array(2 * R); P.crowd = new Float32Array(nE).fill(1); P.load = new Float32Array(nE);
     P.stDelay = new Float32Array(N); P.stIn = new Float32Array(N); P.stOut = new Float32Array(N); P.stXfer = new Float32Array(N); P.stBoard = new Float32Array(N);
-    for (let r = 0; r < R; r++) { P.freq[r] = net.isSvc[r] ? 0 : Model.serviceFloor(net.C.routes[r], p < 0 ? 1 : p); P.freqDir[2 * r] = P.freqDir[2 * r + 1] = P.needDir[2 * r] = P.needDir[2 * r + 1] = P.freq[r]; }   // 加开的交路从停运开始，有配属列车时在求解中升到实际频率
+    for (let r = 0; r < R; r++) { P.freq[r] = Model.railFrequency(net.C.routes[r], p) ?? (net.isSvc[r] ? 0 : Model.serviceFloor(net.C.routes[r], p < 0 ? 1 : p)); P.freqDir[2 * r] = P.freqDir[2 * r + 1] = P.needDir[2 * r] = P.needDir[2 * r + 1] = P.freq[r]; }   // 加开的交路从停运开始，有配属列车时在求解中升到实际频率
     if (old && oldNet && net) {
       const keyIdx = new Map(); oldNet.routeKey.forEach(function (k, i) { keyIdx.set(k, i); });
       for (let r = 0; r < R; r++) {
@@ -1486,7 +1500,7 @@
         const f = Math.max(0.5, fr);
         const w = 60 / (2 * f);
         cost[e] = prm.waitW * w + prm.tpen + P.stDelay[net.eSt[e]];
-        if (stopped && net.isSvc[net.eRoute[e]]) cost[e] = 1e5;   // 加开的交路没有投入列车时不能上车（不算长时间候车）
+        if (stopped && (net.isSvc[net.eRoute[e]] || net.C.routes[net.eRoute[e]].railFreq != null)) cost[e] = 1e5;   // 加开的交路没有投入列车时不能上车（不算长时间候车）
         tAct[e] = w + P.stDelay[net.eSt[e]] * 0.5;
         if (net.eT0[e] > 0) { cost[e] += prm.walkW * net.eT0[e]; tAct[e] += net.eT0[e]; }   // 天地换乘的垂直通道
       } else if (ty === 1) {
@@ -1693,6 +1707,7 @@
           P.needDir[k] = need;
           let f = P.freqDir[k] * 0.55 + need * 0.45;
           if (fp) { const per = 3600 / Math.max(60, rt.cycleSec); f = fp.manual ? Math.min(mc.fMax, Math.min(fp.manual[d][p], fp.avail[d]) * per) : Math.min(f, mc.fMax, fp.avail[d] * per); }
+          if (rt.railFreq != null) f = Model.railFrequency(rt, p);
           P.freqDir[k] = f; if (nd === 1) { P.freqDir[k + 1] = f; P.needDir[k + 1] = need; }
         }
         P.freq[r] = nd === 2 ? (P.freqDir[2 * r] + P.freqDir[2 * r + 1]) / 2 : P.freqDir[2 * r];
@@ -1946,9 +1961,18 @@
           const rt = net.C.routes[r], fp = plan && plan[r];
           const svcH = p === 3 ? 5 : h, fd = P.freqDir && P.freqDir.length === 2 * net.R ? P.freqDir[2 * r] + P.freqDir[2 * r + 1] : 2 * P.freq[r];
           const ck = fd * (rt.lenM / 1000) * (fp ? fp.cars : rt.cars) * svcH;
+          if (rt.line.rail && !rt.line.railOwned) continue;
           D.carKm += ck; D.carKmW += ck * (fp ? fp.opsF : 1);
         }
       }
+    }
+    if (net?.C.routes.some(rt=>rt.line.rail)) {
+      const boards=this.stationDaily(perList,net).routeBoard;
+      const total=boards.reduce((sum,n)=>sum+n,0);
+      let external=0, owned=0;
+      net.C.routes.forEach((rt,i)=>{ if (rt.line.rail) { if (rt.line.railOwned) owned+=boards[i]; else external+=boards[i]; } });
+      D.railFare=total>0?D.fare*owned/total:0;
+      if(total>0) D.fare*=1-external/total;
     }
     D.ready = ok;
     return this.finishDaily(D, perList[0] && perList[0].stats, net);
@@ -2090,6 +2114,7 @@
     return den > 0 ? num / den : 1;
   };
   // 线路最低服务水平（列/小时）：车站越多、站距越小的城区线越密，站距大的郊区线较疏；非环线保证至少 2 列车在线运行
+  Model.railFrequency = (rt, p) => rt.line.rail === 'jin' && p === 3 ? 0 : rt.railFreq;
   Model.serviceFloor = function (rt, p) {
     const mc = CFG.metro;
     if (!rt) return mc.fMin[p];

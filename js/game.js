@@ -3,6 +3,13 @@
 (function (CM) {
   const U = CM.U, CFG = CM.CFG, D = CM.DATA, M = CM.Metro;
 
+  function canOpenRegionEarly(region, population, year, economy) {
+    const dev = economy ? economy.dev : 0;
+    const years = region.earlyYears ?? (dev > 0.02 ? 4 : 3);
+    const threshold = region.pop * (dev < -0.03 ? 1.03 : 1);
+    return !!region.pop && year >= region.open - years && population >= threshold;
+  }
+
   function Game() {
     U.Emitter.call(this);
     this.speed = 0;
@@ -51,7 +58,7 @@
       g.net = M.empty();
       const emptyStart = opts.mode === 'challenge' && opts.emptyStart && D.emptyStartFunds > 0;
       g.mapInit = emptyStart ? null : buildInitialNetwork(g);
-      g.compiled = M.compile(g.net, g.city);
+      g.compiled = CM.RailConcessions.compile(g.net, g);
       g.model.setNetwork(g.compiled);
       lp(0.3, '建立交通模型');
       g.econ = new CM.Economy(g.mode, g.clock.y, g.clock.m, emptyStart ? D.emptyStartFunds : undefined);
@@ -147,7 +154,7 @@
         const rg = city.regions[k];
         if (city.regionOpen[k] || rg.open == null) continue;
         if (rg.id === 'airport' && D.airport && D.airport.closeYear < 9999 && yr < D.airport.closeYear + 7 / 12) continue;
-        const byYear = y >= rg.open, early = rg.pop && tot.pop >= rg.pop * (ef && ef.dev < -0.03 ? 1.03 : 1) && y >= rg.open - (ef && ef.dev > 0.02 ? 4 : 3);
+        const byYear = y >= rg.open, early = canOpenRegionEarly(rg, tot.pop, y, ef);
         if (byYear || early) { city.openRegion(k, y, m); this.logEvent({ tag: byYear ? '史实' : '模拟', title: '新区域开放：' + rg.name, desc: (byYear ? '参考 ' + rg.open + ' 年开放' : '城市人口增长，提前开放（参考 ' + rg.open + ' 年）') + (rg.note ? '。' + rg.note : '') + city.openNote(k) }); roads = true; }
       }
       const econF = this.macro && CM.Macro ? CM.Macro.applyFactors(this) : null;
@@ -157,14 +164,14 @@
       if (CM.Eras) { const er = CM.Eras.month(this); if (er) this.logEra(er, false); }
       // 每 5 年刷新一次道路网络与可达性（新区、道路与人口分布改变了出行条件）
       if (m === 1 && (y - y0) % 5 === 0) {
-        city.buildGraphs(); const C = M.compile(this.net, city);
+        city.buildGraphs(); const C = CM.RailConcessions.compile(this.net, this);
         yield* model.refreshCityGen(C);
         this.compiled = C; if (sync) model.solveNow(1); else yield* model.solveGen(1);
       }
       if ((++n & 3) === 0) yield;
     }
     city.updateStreets(); city.buildGraphs();
-    const C = M.compile(this.net, city);
+    const C = CM.RailConcessions.compile(this.net, this);
     yield* model.refreshCityGen(C);
     this.compiled = C;
     model.setYear(this.clock.y); model.setDayType(CM.Model.dayType(this.clock.y, this.clock.m, this.clock.d));
@@ -239,7 +246,7 @@
     if (plan.version !== this.netVersion) { this._impactPlan = null; return; }
     const cityVersion = this.city.version, roadVersion = this.city.roadVersion, year = m.year, fare = CM.Model.fareKey(m.fare);
     this.impactReport = { status: 'calculating', at: [this.clock.y, this.clock.m] };
-    const beforeC = M.compile(plan.before, this.city);
+    const beforeC = CM.RailConcessions.compile(plan.before, this);
     m.predict(this.compiled, plan.lines, res => {
       if (this._impactPlan !== plan || m.retired) return;
       if (this.netVersion !== plan.version || this.city.version !== cityVersion || this.city.roadVersion !== roadVersion || m.year !== year || CM.Model.fareKey(m.fare) !== fare) {
@@ -417,7 +424,7 @@
       if (rg.id === 'airport' && D.airport && D.airport.closeYear < 9999 && yr < D.airport.closeYear + 7 / 12) continue;
       const byYear = y >= rg.open;
       // 人口提前达到门槛时可提前开放；经济繁荣时提前窗口放宽一年，衰退时门槛略为提高
-      const early = rg.pop && tot.pop >= rg.pop * (ef && ef.dev < -0.03 ? 1.03 : 1) && y >= rg.open - (ef && ef.dev > 0.02 ? 4 : 3);
+      const early = canOpenRegionEarly(rg, tot.pop, y, ef);
       if (byYear || early) {
         city.openRegion(k, y, m); regionOpened = true;
         const why = byYear ? '参考 ' + rg.open + ' 年开放' : '城市人口增长，提前开放（参考 ' + rg.open + ' 年）';
@@ -434,14 +441,17 @@
     yield;
     // 交通刷新节奏（v2.6）：见 trafficDue。不刷新的月份沿用上次的出行结果（模型年份也不变，结果仍算有效），城市发展与经营照常按月结算
     this._graphsDirty = this._graphsDirty || gr.streetsChanged;
-    const bigChange = roadsChanged || regionOpened || gr.newUrban >= Math.max(32, Math.ceil(city.N * .005));
+    const railway = CM.RailConcessions.definition(this);
+    const railChanged = railway && ((y === railway.from && m === (railway.month || 1)) || (m === 1 && CM.RailConcessions.phaseDates[railway.id].includes(y)));
+    if (railChanged && this.draft) this.draft.compVer = -1;
+    const bigChange = railChanged || roadsChanged || regionOpened || gr.newUrban >= Math.max(32, Math.ceil(city.N * .005));
     if (this.trafficDue(yr, bigChange)) {
       model.setYear(yr);
       if (this._graphsDirty || roadsChanged) { if (roadsChanged) city.updateStreets(); yield* city.buildGraphsGen(); this._graphsDirty = false; yield; }
       // 编译与模型刷新分多步执行；this.compiled 与模型网络在同一步内一起替换
       // 线网与线路几何没变时沿用上次的编译结果（只取决于线网和城市几何，与日期无关）：省去几十毫秒的同步编译，以及随之重建的三维轨道网格与线网缓存图（v2.6）
-      const compKey = this.netVersion + ':' + city.geoVer + ':' + city.terrainVer;
-      const C = this._compKey === compKey && this.compiled ? this.compiled : M.compile(this.net, city);
+      const compKey = this.netVersion + ':' + (railway && CM.RailConcessions.available(this,railway) ? y : 0) + ':' + city.geoVer + ':' + city.terrainVer;
+      const C = this._compKey === compKey && this.compiled ? this.compiled : CM.RailConcessions.compile(this.net, this);
       this._compKey = compKey;
       yield;
       yield* model.refreshCityGen(C);
@@ -463,6 +473,7 @@
     if (model.trafficReady()) this.tasks.rebaseCongestion(this);
     this.tasks.monthly(this).forEach((o) => this.logTask(o));
     if(model.hasReviewWork()){yield* model.solveReviewsGen();this.tasks.monthly(this).forEach(o=>this.logTask(o));}
+    CM.RailConcessions.monthly(this);
     if (CM.Corp) CM.Corp.monthly(this);   // 政府合同（v2.5）：评标、履约考核与付费、招标；履约信誉影响本月拨款
     if (CM.Fleet && this.fleet) CM.Fleet.monthly(this);   // 车队（v2.5）：高峰运力不足、列车超龄提示
     this.econ.payGrant(y, m);
@@ -642,29 +653,41 @@
   };
   Game.prototype.draftEval = function () {
     const d = this.draft; if (!d) return null;
-    if (d.evalVer !== d.ver || d.evalYear !== this.clock.y) {
+    const key = this.draftPriceKey();
+    if (d.evalVer !== d.ver || d.evalKey !== key) {
       d.eval = M.evaluate(d.net, this.net, this.city, this.clock.y);
-      if (CM.Fleet && this.fleet) CM.Fleet.draftExtra(this, d.eval);   // 随线配车（v2.5）：新线与延长后补足最低服务所需列车，费用计入建设
+      if (CM.Fleet && this.fleet) CM.Fleet.draftExtra(this, d.eval, null, d.net.trainOrders);
+      if (CM.Fleet && this.fleet) CM.Fleet.quotePurchases(this, d.net, d.eval);
       d.evalVer = d.ver;
       d.evalYear = this.clock.y;
+      d.evalKey = key;
     }
     return d.eval;
   };
   Game.prototype.draftCompiled = function () {
     const d = this.draft; if (!d) return null;
-    if (d.compVer !== d.ver) { d.compiled = M.compile(d.net, this.city); d.compVer = d.ver; }
+    if (d.compVer !== d.ver) { d.compiled = CM.RailConcessions.compile(d.net, this); d.compVer = d.ver; }
     return d.compiled;
   };
   Game.prototype.draftStationEdits = function (id) {
     const before = this.net.stations[id], after = this.draft.net.stations[id], edits = [];
     if (!before || !after) return edits;
     if (before.size !== after.size) edits.push('规模');
+    if ((before.tod || 0) !== (after.tod || 0)) edits.push('商业开发');
     if (before.x !== after.x || before.y !== after.y) edits.push('位置');
     if (before.type !== after.type || M.stationLevel(before) !== M.stationLevel(after)) edits.push('标高');
+    if (M.platDirsChanged(this.net, this.draft.net, id)) edits.push('站台方向');
+    if (M.stationLines(this.net, id).some(lid => this.draft.net.lines[lid] && M.platType(before, lid) !== M.platType(after, lid))) edits.push('站台层');
+    if (JSON.stringify(before.hillEntrance || null) !== JSON.stringify(after.hillEntrance || null)) edits.push('高低出入口');
     return edits;
   };
-  // A phase contains selected station renovations and new track. Replacements and demolitions
-  // use the full draft so their removal and reconstruction stay atomic.
+  Game.prototype.draftTrackSelectable = function (s) {
+    const before = this.net.segments[s.id];
+    if (!before) return !s.base?.length;
+    if (before.a !== s.a || before.b !== s.b || before.line !== s.line) return false;
+    return ['type', 'transition', 'tunnel', 'pts', 'curve', 'speed'].some(key => JSON.stringify(before[key]) !== JSON.stringify(s[key])) ||
+      M.segmentGrade(this.net, before).kmh !== M.segmentGrade(this.draft.net, s).kmh;
+  };
   Game.prototype.draftPhase = function (ids) {
     const d = this.draft;
     if (!d || d.liveSnap || !ids.length) return { reason: '请选择要建设的区段或车站改造' };
@@ -674,17 +697,27 @@
     for (const id of selected) {
       if (!this.draftStationEdits(id).length) continue;
       const s = plan.stations[id];
-      Object.assign(net.stations[id], { size:s.size, x:s.x, y:s.y, type:s.type, elev:s.elev });
+      Object.assign(net.stations[id], { size:s.size, x:s.x, y:s.y, type:s.type, elev:s.elev, hillEntrance:s.hillEntrance, tod:s.tod });
       const station = net.stations[id];
       station.lv = Object.fromEntries(M.stationLines(this.net, id).map(lid =>
         [lid, M.platType(plan.lines[lid] ? s : this.net.stations[id], lid)]));
+      station.pd = s.pd ? { ...s.pd } : undefined;
       renovations.add(id);
     }
     for (const id of selected) {
       if (renovations.has(id)) continue;
+      if (plan.trainOrders?.[id]) {
+        (net.trainOrders || (net.trainOrders = {}))[id] = plan.trainOrders[id]; continue;
+      }
       const s = plan.segments[id];
-      if (!s || net.segments[id] || (s.base && s.base.length)) return { reason: '分段建设仅支持新建轨道，改建区段请使用整份草案确认' };
-      net.segments[id] = plan.segments[id];
+      if (!s && plan.stations[id] && !net.stations[id]) {
+        net.stations[id] = plan.stations[id]; stations.add(id); continue;
+      }
+      if (!s || !this.draftTrackSelectable(s)) return { reason: '所选项目涉及线路拆分或重接，请一并确认整份草案' };
+      net.segments[id] = M.clone(s);
+      if (net.lines[s.line] && M.lineKmh(net.lines[s.line]) !== M.lineKmh(plan.lines[s.line])) {
+        net.segments[id].speed = M.segmentGrade(plan, s).kmh;
+      }
       tracks.push(id);
       lines.add(s.line); stations.add(s.a); stations.add(s.b);
     }
@@ -695,7 +728,8 @@
       }
     }
     for (const lid of lines) {
-      if (Object.values(this.net.segments).some(s => s.line === lid && (!plan.segments[s.id] || plan.segments[s.id].line !== lid))) {
+      if (tracks.some(id => !this.net.segments[id] && plan.segments[id].line === lid) &&
+          Object.values(this.net.segments).some(s => s.line === lid && (!plan.segments[s.id] || plan.segments[s.id].line !== lid))) {
         return { reason: '所选线路含拆除或拆分，需与重建区段一起确认' };
       }
       const segs = Object.values(net.segments).filter(s => s.line === lid);
@@ -721,7 +755,8 @@
     }
     M.normalizeLevels(candidate);
     const ev = M.evaluate(candidate, this.net, this.city, this.clock.y);
-    if (CM.Fleet && this.fleet) CM.Fleet.draftExtra(this, ev, M.compile(candidate, this.city));
+    if (CM.Fleet && this.fleet) CM.Fleet.draftExtra(this, ev, CM.RailConcessions.compile(candidate, this), candidate.trainOrders);
+    if (CM.Fleet && this.fleet) CM.Fleet.quotePurchases(this, candidate, ev);
     return { net: candidate, ev, selected, stations, tracks, renovations };
   };
   Game.prototype.draftPriceKey = function () {
@@ -738,19 +773,22 @@
     const d = this.draft, key = this.draftPriceKey();
     if (d.segmentPrices?.key !== key) {
       const ev = this.draftEval(), rows = new Map(), stations = new Map(), lines = new Map(), renovations = new Map();
+      for (const id of Object.keys(d.net.trainOrders || {})) renovations.set(id, 0);
       for (const id of Object.keys(this.net.stations)) {
         if (this.draftStationEdits(id).length) renovations.set(id, 0);
+      }
+      for (const s of Object.values(d.net.stations)) {
+        if (!this.net.stations[s.id] && !M.stationLines(d.net, s.id).length) renovations.set(s.id, 0);
       }
       const add = (map, id, row) => {
         if (!map.has(id)) map.set(id, []);
         map.get(id).push(row);
       };
       for (const s of Object.values(d.net.segments)) {
-        if (this.net.segments[s.id] || s.base?.length) continue;
+        if (!this.draftTrackSelectable(s)) continue;
         const row = { track:0, station:0, fleet:0 };
         rows.set(s.id, row);
-        add(stations, s.a, row);
-        add(stations, s.b, row);
+        if (!this.net.segments[s.id]) { add(stations, s.a, row); add(stations, s.b, row); }
         add(lines, s.line, row);
       }
       let other = 0;
@@ -829,6 +867,9 @@
       for (const id in off.lines) if (!d.net.lines[id]) { keepLine(id); any = true; }
       if (any) this.netGone = gone; }
     const netBefore = this.net;
+    const orders = d.net.trainOrders;
+    delete d.net.trainOrders;
+    if (remainder?.trainOrders) for (const id of Object.keys(orders || {})) delete remainder.trainOrders[id];
     if (CM.Fleet) CM.Fleet.speedProgress(this);
     this.net = d.net;
     for (const lid of Object.keys(this.net.lines)) {
@@ -836,9 +877,9 @@
     }
     this.netVersion++;
     this.rev++;
-    this.compiled = M.compile(this.net, this.city);
+    this.compiled = CM.RailConcessions.compile(this.net, this);
     if (CM.Fleet) CM.Fleet.speedProgress(this);
-    if (CM.Fleet && this.fleet) { CM.Fleet.applyAdd(this, ev.fleetAdd); CM.Fleet.sync(this); this.fleet.ver++; }   // 随线配车落实；拆除线路的列车回到车辆段
+    if (CM.Fleet && this.fleet) { CM.Fleet.applyAdd(this, ev.fleetAdd); CM.Fleet.deliverPurchases(this, orders); CM.Fleet.sync(this); this.fleet.ver++; }
     if (CM.OpsAlerts) { try { CM.OpsAlerts.restructure(this, netBefore); } catch (e) { console.error(e); } }   // 贯通、拆开后地铁芯的历史记录跟着调整（只影响显示）
     this.model.cancelPredict();
     // 沿线拆迁减少了人口与就业：立即重算小区人口岗位与出行需求，不等到月度结算
@@ -852,7 +893,12 @@
         const segment = this.net.segments[id];
         if (segment && segment.lh) remainder.segments[id].lh = M.clone(segment.lh);
       }
-      for (const id of phase.tracks) remainder.segments[id] = M.clone(this.net.segments[id]);
+      for (const id of phase.tracks) {
+        const completed = M.clone(this.net.segments[id]);
+        const planned = remainder.segments[id];
+        if (planned.speed == null) delete completed.speed;
+        remainder.segments[id] = completed;
+      }
       for (const id of Object.keys(ev.paidLen || {})) {
         if (remainder.segments[id]) remainder.segments[id].paidLen = this.net.segments[id].paidLen;
       }
@@ -862,7 +908,7 @@
         Object.assign(remainder.stations[id], { built: s.built, site: s.site });
       }
       remainder.nextId = this.net.nextId;
-      if (M.evaluate(remainder, this.net, this.city, this.clock.y).changed) {
+      if (Object.keys(remainder.trainOrders || {}).length || M.evaluate(remainder, this.net, this.city, this.clock.y).changed) {
         this.draft = { net: remainder, phaseIds, undo: [], redo: [], ver: 1, evalVer: -1, eval: null, compiled: null, compVer: -1, pred: { state: 'idle' } };
       }
     }
@@ -878,7 +924,7 @@
   // 运营组织变化（运行交路，v2.5）：不改动轨道、不收费，立即重新编译并按新的路线求解；草案随之重新检查
   Game.prototype.refreshOperations = function () {
     this.netVersion++; this.rev++;
-    this.compiled = M.compile(this.net, this.city);
+    this.compiled = CM.RailConcessions.compile(this.net, this);
     if (CM.Fleet && this.fleet) { CM.Fleet.sync(this); this.fleet.ver++; }
     this.model.cancelPredict();
     this.model.setNetwork(this.compiled);
@@ -1037,7 +1083,7 @@
       meta: { gameId: this.id, name: this.name, mode: this.mode, seed: this.seed, createdAt: this.createdAt, gameVersion: CFG.GAME_VERSION, map: this.mapId || 'gz', mapVersion: (CM.MAPS[this.mapId || 'gz'] || {}).mapVersion || 1, scenario: (CM.MAPS[this.mapId || 'gz'] || {}).scenario || '', mapFp: (CM.MAPS[this.mapId || 'gz'] || {}).fp || '' },
       clock: Object.assign({}, this.clock),
       city: this.city.serialize(),
-      net: this.net,
+      net: this.net, railConcession: this.railConcession || undefined,
       econ: this.econ.serialize(),
       tasks: this.tasks.serialize(),
       corp: this.corp || undefined,   // 地铁公司的政府合同：招标、履约中与已结束的合同、履约信誉（v2.5）
@@ -1098,8 +1144,9 @@
       g.model.setDayType(CM.Model.dayType(g.clock.y, g.clock.m, g.clock.d));
       g.model.buildZones(); g.model.buildDemand();
       g.net = s.net;
+      g.railConcession = s.railConcession || null;
       M.localizeStationNames(g.net, g.city);
-      g.compiled = M.compile(g.net, g.city);
+      g.compiled = CM.RailConcessions.compile(g.net, g);
       g.model.setNetwork(g.compiled);
       g.econ = CM.Economy.restore(s.econ);
       g.model.fare = g.econ.fare;

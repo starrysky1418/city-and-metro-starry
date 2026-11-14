@@ -25,6 +25,7 @@
     if (this.tool === t) return;
     this.cancelDrag();
     if (this.ui.closeLinePicker) this.ui.closeLinePicker();
+    this.hillEntrancePick = null;
     this.tool = t;
     this.transitionPoint = null; this.placingTransition = false;
     this.chain = null; this.bends = []; this.drag = null; this.hint = null; this.hover = null; this.lineLock = false; this.snapPt = null; this.lastSeg = null; this.meas = { pts: [], done: false };
@@ -552,6 +553,16 @@
   Tools.prototype.onClick = function (sx, sy, mod, multiKey) {
     const g = this.game(), R = this.R;
     if (g.jumping) return;
+    if (this.hillEntrancePick) {
+      const pick = this.hillEntrancePick;
+      this.hillEntrancePick = null;
+      if (pick.game === g && this.net().stations[pick.id]) {
+        const p = this.world(sx, sy, 0);
+        g.edit(n => { n.stations[pick.id].hillEntrance = [p.x, p.y, pick.z]; });
+        this.ui.select({ kind: 'station', id: pick.id });
+        return;
+      }
+    }
     let w = this.world(sx, sy, this.buildH());
     let st = R.pickStation(sx, sy);
     let seg = st ? null : R.pickSegment(sx, sy);
@@ -855,6 +866,7 @@
     }
     if (!g || this.ui.blocking()) { this.keys.clear(); this.keyMods = {}; if (e.key === 'Escape') this.ui.escape(); return; }
     const esc = e.key === 'Escape';
+    if (esc && this.hillEntrancePick) { this.hillEntrancePick = null; this.ui.renderPage?.(); e.preventDefault(); return; }
     if (esc) {
       e.preventDefault();
       this.keys.clear(); this.keyMods = {};
@@ -1215,6 +1227,7 @@
         const pulse = 0.5 + 0.5 * Math.sin(R.time * 5);
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         for (const c of ev.conflicts) {
+          if (c.kind === 'order') continue;
           const on = hov === c.n, gd = this.guideFor(c);
           if (c.kind === 'seg' && R.segPx && R.segPx.get(c.ref)) {
             ctx.strokeStyle = 'rgba(214,48,49,' + (gd && gd.stretch && gd.stretch.length ? (on ? 0.25 : 0.14) : (on ? 0.55 : 0.28 + 0.12 * pulse)) + ')';
@@ -1230,6 +1243,7 @@
           }
         }
         for (const c of ev.conflicts) {
+          if (c.kind === 'order') continue;
           const q = R.P(c.x, c.y, this.conflictH(c)), on = hov === c.n;
           const s = on ? 1.25 : 1, r = 10 * s;
           const tipY = q.y, cy = tipY - 16 * s;

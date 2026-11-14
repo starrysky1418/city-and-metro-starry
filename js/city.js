@@ -86,12 +86,12 @@
     let sumP = 0, sumJ = 0;
     const density = this.regions.map(function (r) {
       const d = r.demography;
-      return d ? U.lerp(d.initial, d.mature, development(startYear, r.open)) : 1;
+      return d ? U.lerp(d.initial, d.mature, development(startYear, d.from ?? r.backgroundGrowth ?? r.open)) : 1;
     });
     for (let c = 0; c < N; c++) {
       if ((c & 4095) === 4095) yield;
       const L = this.lu[c];
-      if (L === LU.WATER || L === LU.HILL || L === LU.PARK || L === LU.AIRPORT) continue;
+      if (L === LU.WATER || L === LU.HILL || L === LU.PARK || L === LU.AIRPORT || this.regions[this.region[c]].mapBackground) continue;
       const i = c % W, j = (c / W) | 0, cx = i + 0.5, cy = j + 0.5;
       let p = D.rural.pop, jb = D.rural.jobs;
       for (const ct of D.centers) {
@@ -545,11 +545,17 @@
     regions.forEach(function (rg, k) {
       if (rg.geo) {
         // 风景区 / 公园范围，或按行政界线整体划定（geo.admin：嵌在区里的风景区、开发区等，按区域顺序优先于街道与区）
-        const list = rg.geo.reserve ? Geo.reserves.filter(function (f) { return f.name === rg.geo.reserve; }) : rg.geo.admin ? Geo.admin.filter(function (f) { return f.name === rg.geo.admin; }) : Geo.parks.filter(function (f) { return f.name === rg.geo.park; });
+        const list = rg.geo.adminNames ? Geo.admin.filter(f => rg.geo.adminNames.includes(f.name)) :
+          rg.geo.reserve ? Geo.reserves.filter(f => f.name === rg.geo.reserve) :
+          rg.geo.admin ? Geo.admin.filter(f => f.name === rg.geo.admin) : Geo.parks.filter(f => f.name === rg.geo.park);
         fillCells(list, k);
       }
       // 山地风景区按林地覆盖率划定（如香港郊野公园的山体），woodMin 为最低林地覆盖率
-      if (rg.woodMin) for (let c = 0; c < N; c++) if (rr[c] === NONE && self.wood[c] >= rg.woodMin && self.landMax[c] >= 0.5) rr[c] = k;
+      if (rg.woodMin) for (let c = 0; c < N; c++) {
+        if (rr[c] !== NONE || self.wood[c] < rg.woodMin || self.landMax[c] < 0.5) continue;
+        const x = c % W + 0.5, y = Math.floor(c / W) + 0.5;
+        if (!rg.woodBounds || rg.woodBounds.some(([x0,y0,x1,y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) rr[c] = k;
+      }
       // 显式多边形（格坐标），可为多个：[[x, y], …] 或 [[[x, y], …], …]
       if (rg.poly) {
         const polys = typeof rg.poly[0][0] === 'number' ? [rg.poly] : rg.poly;
@@ -673,7 +679,7 @@
     for (let c = 0; c < N; c++) {
       if (LF[c] < 0.5) continue;
       const k0 = reg[c], k = R[k0].scenic && host && host[c] !== 255 ? host[c] : k0, rg = R[k];
-      if (rg.scenic) continue;
+      if (rg.scenic || rg.mapBackground) continue;
       const hub = rg.hub || (air && rg.id === 'airport');
       if (open[k] || hub) el[c] = 1;
       if (!R[k0].scenic && !hub && rg.open != null && rg.open <= y0) seed[c] = 1;
@@ -697,7 +703,7 @@
       for (let s = 0; s < N; s++) {
         if (!el[s] || vis[s] || (useSeed && !seed[s])) continue;
         const q = [s]; vis[s] = 1; wr.fill(0); bfs(q, function (v) { return el[v]; }, vis, wr);
-        let ns = 0; for (const c of q) if (LF[c] >= 0.5) { comp[c] = id; if (!useSeed || seed[c]) ns++; }
+      let ns = 0; for (const c of q) if (LF[c] >= 0.5) { comp[c] = id; if (!useSeed || seed[c]) ns++; }
         if (ns > bestN) { bestN = ns; best = id; }
         id++;
       }
@@ -705,6 +711,9 @@
     }
     // 旧存档兼容：已有车站所在的连片同样可以建设（见 keepLegacyOpen）
     const keep = new Set([best]);
+    if (D.multipleStartAreas) for (let c = 0; c < N; c++) {
+      if (seed[c] && comp[c] >= 0) keep.add(comp[c]);
+    }
     for (const c of this.legacySeeds || []) {
       if (el[c] && comp[c] < 0) {   // 不含开局城区的连片在上面没有编号
         const q = [c]; vis[c] = 1; wr.fill(0); bfs(q, function (v) { return el[v]; }, vis, wr);
@@ -723,7 +732,8 @@
     }
     bfs(q, function (v) { return !inM(v); }, out, wr);
     const mask = new Uint8Array(N);
-    for (let c = 0; c < N; c++) if (LF[c] >= 0.5 && !inM(c) && out[c]) mask[c] = 1;
+    for (let c = 0; c < N; c++) if (LF[c] >= 0.5 &&
+      (R[reg[c]].mapBackground || R[reg[c]].backgroundGrowth != null || (!inM(c) && out[c]))) mask[c] = 1;
     return mask;
   };
   City.prototype.lockState = function () {
@@ -834,7 +844,7 @@
     }
     for (const p of comps) {
       const n = p.cells.length, rg = regions[p.k];
-      if (n >= largest[p.k] || (rg.scenic ? n >= 4 || !rg.woodMin : n >= 12)) continue;
+      if (rg.mapBackground || rg.backgroundGrowth != null || n >= largest[p.k] || (rg.scenic ? n >= 4 || !rg.woodMin : n >= 12)) continue;
       const cnt = new Map(), alt = new Map();   // alt：四周只有风景区时并入风景区
       for (const c of p.cells) {
         const i = c % W;
@@ -941,7 +951,7 @@
       const p = g.ways[0], m = (p.length / 4 | 0) * 2;
       const c = self.cellAt(p[m], p[m + 1]);
       const rg = c >= 0 ? self.regions[self.region[c]] : D.defaultRegion;
-      g.year = rg.scenic || rg.open == null ? CFG.START.y : Math.max(CFG.START.y, rg.open);
+      g.year = rg.roadStart ?? (rg.scenic || rg.open == null ? CFG.START.y : Math.max(CFG.START.y, rg.open));
       if (g.cls < 4 && !g.flags) for (const site of D.localRoadStarts || []) {
         if (U.dist(p[m], p[m + 1], site.x, site.y) <= site.radius) g.year = Math.min(g.year, site.year);
       }
@@ -1500,7 +1510,7 @@
     const growth = this.regions.map(function (r, k) {
       const d = r.demography, date = this.regionOpenDate[k];
       if (!d) return 1;
-      const opened = date ? date[0] + (date[1] - 1) / 12 : r.open;
+      const opened = d.from ?? (date ? date[0] + (date[1] - 1) / 12 : (r.backgroundGrowth ?? r.open));
       return U.lerp(d.early, d.mature, development(year, opened));
     }, this);
     let sR = 0, sJ = 0;
@@ -1509,8 +1519,10 @@
       if (c && (c & 4095) === 0) yield;
       const L = this.lu[c];
       if (L === LU.WATER || L === LU.HILL || L === LU.PARK || L === LU.AIRPORT || L === LU.LANDMARK) continue;
-      if (!this.regionOpen[this.region[c]]) continue;
-      const regionalGrowth = growth[this.region[c]];
+      const regionIndex = this.region[c];
+      const region = this.regions[regionIndex];
+      if (!this.regionOpen[regionIndex] && region.backgroundGrowth == null && !(year >= (region.demography?.from ?? Infinity))) continue;
+      const regionalGrowth = growth[regionIndex];
       const lf = this.landFrac[c] * (1 - this.taken[c]);
       if (lf <= 0.05) continue;
       const P = L === LU.RURAL ? this.plan[c] : L;
@@ -1535,7 +1547,10 @@
       }
       const rnd = 0.6 + 0.8 * U.hash2(c, mi, this.seed + 31);
       const remR = cr - this.pop[c], remJ = cj - this.jobs[c];
-      const kR = EF ? Math.pow(EF.pop[this.region[c]], flat) : 1, kJ = EF ? Math.pow(EF.jobs[this.region[c]], flat) : 1;
+      const k = this.region[c];
+      // Era-specific growth responds to operational station access, independent of network maturity.
+      const kR = EF ? Math.pow(EF.pop[k], flat) * U.lerp(1, EF.railPop[k], st) : 1;
+      const kJ = EF ? Math.pow(EF.jobs[k], flat) * U.lerp(1, EF.railJobs[k], st) : 1;
       if (remR > 0) { wR[c] = remR * (0.25 + acc) * (1 + 1.6 * st) * (0.3 + nb) * rnd * seed * kR * regionalGrowth * (1 + GL.res * pw * pf); sR += wR[c]; }
       if (remJ > 0) {
         const comBoost = (P === LU.COM || P === LU.MIX) ? 2.0 * ecom : 1;
@@ -1676,9 +1691,14 @@
       else { const rg = this.regions[k]; if (rg.open != null && rg.open <= fy && (rg.id !== 'airport' || !D.airport)) { this.regionOpen[k] = 1; this.regionOpenDate[k] = [rg.open, 1]; } }
       // 同一网页版格网内的展示修订；不接受独立版扩图数据，也不平移玩家线网。
       const rg = this.regions[k];
+      if (rg.mapBackground) { this.regionOpen[k] = 0; this.regionOpenDate[k] = null; }
       if (D.displayRevision && (s.displayRevision || 1) < D.displayRevision && ((CM.mapId === 'hz' && rg.id === 'jianqiao') || (!D.airport && rg.id === 'airport')) && rg.open != null && rg.open <= year && !this.regionOpen[k]) {
         this.regionOpen[k] = 1; this.regionOpenDate[k] = [rg.open, 1];
       }
+    }
+    for (let c = 0; c < N; c++) {
+      if (!this.regions[this.region[c]].mapBackground) continue;
+      this.pop[c] = 0; this.jobs[c] = 0;
     }
     this.landmarkOn = new Uint8Array(D.landmarks.length);
     this.protectedId.fill(0);

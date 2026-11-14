@@ -74,7 +74,7 @@
     let road=roadGuards.get(rd);
     if(!road||road.graph!==r||road.version!==m.roadVer){road={graph:r,version:m.roadVer,hashes:arrayGuards([r.outStart,r.outArc,r.arcFrom,r.arcTo,r.arcT0,r.arcCap,rd.start,rd.nodes,rd.times,rd.km])};roadGuards.set(rd,road);}
     let metro=metroGuards.get(n);if(!metro){metro=arrayGuards([n.eFrom,n.eTo,n.eT0]);metroGuards.set(n,metro);}
-    return JSON.stringify([g.mapId,m.year,CM.Model.fareKey(m.fare),m.Z,m.fn.ids,n.routeKey,n.C.stations.map(s=>[s.id,s.x,s.y,s.size]),road.hashes.concat(metro)]);
+    return JSON.stringify([g.mapId,m.year,CM.Model.fareKey(m.fare),m.Z,m.fn.ids,n.routeKey,n.C.routes.map(r=>[r.railFreq,r.line.railOwned]),n.C.stations.map(s=>[s.id,s.x,s.y,s.size,s.hillEntrance]),road.hashes.concat(metro)]);
   }
   function capture(g){
     const m=g&&g.model;if(leasedBytes>=MAX_ENTRY/2||!CM.SIM_STAMP||!m||!m.settled||m.gen||m.solving||g.pending||g.jumping||m.predJob||m.hasReviewWork()||!m.trafficReady())return null;

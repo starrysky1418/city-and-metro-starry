@@ -26,6 +26,11 @@
   });
   const data = {
     lineColorsNice: CM.DATA.lineColorsNice,
+    traits:[
+      {use:'finance',flavor:'sg'},
+      {use:'phasedGrowth',star:true,label:'新镇分期入住',text:'东北与西部新镇可提前通车，站口附近会更早吸引新增居民。',regions:['northeast','tengah'],why:'以东北新镇和西部新镇开发先后为参考，分期权重为游戏设定。',effect:'1996 年前，通车可提前吸引东北组团的新增居民。2020 年前，登加与蔡厝港组团也有类似效果。阶段年份是基础增长节奏。'},
+      {use:'reclaim',label:'分期填海',why:'采用本剧本已有的滨海湾与裕廊岛填海阶段。',text:'滨海湾南岸和裕廊岛分期成陆。'},
+    ],
     city:'新加坡',riverName:'新加坡河',seaName:'新加坡海峡',hsrYear:2300,
     places:geo.places,plans:CM.DATA.plans,rural:{pop:260,jobs:90},
     stages:[[1987,'地铁前夜'],[1996,'新镇连网'],[2010,'东北与机场'],[2020,'滨海与西部发展']],stageLast:'模拟未来',
@@ -64,11 +69,11 @@
     facilities:hubs.map(({id,name,type,pax,w}) => ({id,n:name,t:type,lm:id,pax,w,note:'客流规模为游戏估算。'})),
     roadYears:{},bridgeYears:{},bridgeDefaultYear:1985,simRoads:[],
     eras:[
-      {id:'sg-e1',from:1985,name:'地铁前夜',tag:'模拟',summary:'成熟新镇和就业节点已能连线。',grow:{pop:{central:1.3,west:1.25,east:1.25},jobs:{cbd:1.5,west:1.3}}},
-      {id:'sg-e2',from:1987,name:'新镇连网',tag:'模拟',summary:'优先连接成熟住宅区和市区。',grow:{pop:{north:1.4,tengah:1.35,east:1.35}}},
-      {id:'sg-e3',from:1996,name:'东北与机场',tag:'模拟',summary:'盛港与榜鹅逐渐集聚住宅，机场接驳增长。',grow:{pop:{northeast:1.85},jobs:{airport:1.45,'jurong-island':1.4}}},
-      {id:'sg-e4',from:2010,name:'滨海与西部发展',tag:'模拟',summary:'滨海湾、裕廊与登加带来新的出行方向。',grow:{jobs:{marina:1.7,west:1.3},pop:{tengah:1.55,northeast:1.35}}},
-      {id:'sg-e5',from:2020,name:'模拟未来',tag:'模拟',summary:'城市增长按游戏规则推演。',grow:{pop:{tengah:1.45,northeast:1.3}}},
+      {id:'sg-e1',from:1985,name:'地铁前夜',tag:'模拟',summary:'成熟新镇和就业节点已能连线。',grow:{pop:{central:1.3,west:1.25,east:1.25},jobs:{cbd:1.5,west:1.3}},railGrowth:{pop:{northeast:1.25,tengah:1.25}}},
+      {id:'sg-e2',from:1987,name:'新镇连网',tag:'模拟',summary:'优先连接成熟住宅区和市区。',grow:{pop:{north:1.4,tengah:0.85,east:1.35}},railGrowth:{pop:{northeast:1.30,tengah:1.30}}},
+      {id:'sg-e3',from:1996,name:'东北与机场',tag:'模拟',summary:'东北组团基础住宅增长加快，西部也可通过提前通车吸引居民。',grow:{pop:{northeast:1.85,tengah:0.9},jobs:{airport:1.45,'jurong-island':1.4}},railGrowth:{pop:{tengah:1.35}}},
+      {id:'sg-e4',from:2010,name:'滨海与西部发展',tag:'模拟',summary:'滨海湾、裕廊与登加带来新的出行方向。',grow:{jobs:{marina:1.7,west:1.3},pop:{tengah:1.10,northeast:1.35}},railGrowth:{pop:{tengah:1.35}}},
+      {id:'sg-e5',from:2020,name:'模拟未来',tag:'模拟',summary:'城市增长按游戏规则推演。',grow:{pop:{tengah:1.70,northeast:1.3}}},
     ],
     events:[
       {y:1987,m:11,tag:'史实',title:'新加坡进入地铁时代',desc:'现实中首段地铁连接大巴窑与杨厝港。本局由玩家决定线路。'},

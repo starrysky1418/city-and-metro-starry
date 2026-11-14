@@ -111,6 +111,7 @@
   // 融资制度（政府合同的名称与开放年份，corp.js 读取）
   const FLAVOR = {
     cn: { name: 'PPP 特许经营', from: 2002, note: '参照中国内地 2000 年代起的地铁 PPP 与特许经营' },
+    sg: { name: '轨道运营授权', from: 1987, note: '采用社区版新加坡剧本的运营授权规则' },
     hk: { name: '铁路＋物业', from: 1980, note: '参照香港以沿线物业开发收益支持铁路建设的做法' },
     tw: { name: '联合开发与 BOT', from: 1990, note: '参照台北捷运的联合开发与 BOT' },
     fr: { name: '特许经营', from: 1900, note: '参照巴黎市建设隧道、由运营公司特许经营地铁的做法' },
@@ -144,6 +145,10 @@
       needs: function (t, D) { return hasData(D.reclaim && D.reclaim.length, '没有填海数据'); } },
     newDistrict: { mod: 'dev', name: '新区开发', effect: function () { return '新区按真实年份开放，开发期内增长加快'; },
       needs: function (t, D) { return hasData((D.events || []).some(function (e) { return e.fx && e.fx.grow; }), '没有片区增长事件'); } },
+    commuteCorridor: { mod: 'dev', name: '跨区通勤', effect: t => t.effect,
+      needs: (t, D) => hasData((D.eras || []).some(e => e.corridors?.length), '没有通勤走廊数据') },
+    phasedGrowth: { mod: 'dev', name: '分期增长', effect: t => t.effect,
+      needs: (t, D) => needRegions(t.regions, D) },
     relocate: { mod: 'dev', name: '疏解与副中心', effect: function () { return '老城人口与岗位向外迁移，新中心增长加快'; },
       needs: function (t, D) { return hasData((D.eras || []).some(function (e) { return e.relocate; }), '没有疏解数据'); } },
     transition: { mod: 'dev', name: '产业转型',

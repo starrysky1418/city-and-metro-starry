@@ -318,9 +318,9 @@
   M.segGeom = function (net, seg, city) {
     const ctrl = M.segControl(net, seg), g = M.geomFromControl(ctrl, seg.type, city);
     const t = seg.transition;
-    if (!t || t.to === seg.type) return g;
+    if (!t || t.to === seg.type) return withTunnel(ctrl, seg, city, g);
     const key = [t.x, t.y, t.to].join('|'), hit = mixedGeom.get(g);
-    if (hit?.key === key) return hit.geo;
+    if (hit?.key === key) return withTunnel(ctrl, seg, city, hit.geo);
     let nearest = Infinity, at = 0, cut = 0, point = g.pts[0];
     for (let i = 0; i + 1 < g.pts.length; i++) {
       const a = g.pts[i], b = g.pts[i + 1], dx = b[0] - a[0], dy = b[1] - a[1];
@@ -334,8 +334,38 @@
     ];
     const geo = Object.assign({}, g, { parts, transitionAt:at, transitionOffset:nearest, transitionTo:t.to });
     mixedGeom.set(g, { key, geo });
-    return geo;
+    return withTunnel(ctrl, seg, city, geo);
   };
+  function withTunnel(ctrl, seg, city, g) {
+    if (!seg.tunnel) return g;
+    const [start, end] = seg.tunnel;
+    const key = 'tunnel:' + start + ':' + end + ':' + seg.type;
+    const hit = mixedGeom.get(g);
+    if (hit?.key === key) return hit.geo;
+    if (!(start >= 0 && end > start && end <= g.lenM)) return Object.assign({}, g, { invalidTunnel: true });
+    const parts = [];
+    const boundaries = [0, start, end, g.lenM];
+    if (g.transitionTo) boundaries.push(g.transitionAt * CFG.CELL_M);
+    boundaries.sort((a, b) => a - b);
+    for (let k = 1; k < boundaries.length; k++) {
+      const from = boundaries[k - 1], to = boundaries[k];
+      const mid = (from + to) / 2;
+      const type = mid >= start && mid <= end ? 'underground' : g.transitionTo && mid >= g.transitionAt * CFG.CELL_M ? g.transitionTo : seg.type;
+      if (to <= from) continue;
+      const a = U.posAt(g.pts, g.cum, from / CFG.CELL_M, {});
+      const b = U.posAt(g.pts, g.cum, to / CFG.CELL_M, {});
+      const points = [[a.x, a.y]];
+      for (let i = 1; i < g.pts.length - 1; i++) {
+        const metres = g.cum[i] * CFG.CELL_M;
+        if (metres > from && metres < to) points.push(g.pts[i]);
+      }
+      points.push([b.x, b.y]);
+      parts.push({ type, g: M.geomFromControl(ctrl, type, city, points) });
+    }
+    const geo = Object.assign({}, g, { parts, tunnel: [start, end] });
+    mixedGeom.set(g, { key, geo });
+    return geo;
+  }
 
   // 区间两端坡道长度（米）：按轨面高程差与最大坡度计算
   M.rampNeed = function (tA, tS, tB, zA, zB) {
@@ -458,11 +488,11 @@
     const fwd = M.idNum(s.a) <= M.idNum(s.b), pts = (s.pts || []).slice();
     if (!fwd) pts.reverse();
     const t = s.transition;
-    return (fwd ? s.a + '|' + s.b : s.b + '|' + s.a) + '|' + s.type + (t ? '|' + t.to + ':' + t.x + ',' + t.y : '') + (s.curve === 'smooth' ? '|s' : s.curve === 'arc' ? '|a' : '') + '|' + pts.map(function (p) { return p[0].toFixed(3) + ',' + p[1].toFixed(3); }).join(';');
+    return (fwd ? s.a + '|' + s.b : s.b + '|' + s.a) + '|' + s.type + (t ? '|' + t.to + ':' + t.x + ',' + t.y : '') + (s.tunnel ? '|t:' + s.tunnel.join(',') + (fwd ? ':f' : ':r') : '') + (s.curve === 'smooth' ? '|s' : s.curve === 'arc' ? '|a' : '') + '|' + pts.map(function (p) { return p[0].toFixed(3) + ',' + p[1].toFixed(3); }).join(';');
   };
   // 与 seg 共用轨道的其他线路区段；rev 表示其方向与 seg 相反
   M.coTrackSegs = function (net, seg) {
-    if (!seg || seg.transition) return [];
+    if (!seg || seg.transition || seg.tunnel) return [];
     const k = M.trackKey(seg), out = [];
     for (const id in net.segments) { const o = net.segments[id]; if (o !== seg && o.line !== seg.line && M.trackKey(o) === k) out.push({ id: id, rev: o.a !== seg.a }); }
     return out;
@@ -470,7 +500,7 @@
   // 绘线连接两座车站时可沿用的既有轨道（其他线路在这两站之间的区段）
   M.coHost = function (net, a, b, lineId) {
     let best = null;
-    for (const id in net.segments) { const o = net.segments[id]; if (!o.transition && o.line !== lineId && ((o.a === a && o.b === b) || (o.a === b && o.b === a)) && (!best || M.idNum(o.id) < M.idNum(best.id))) best = o; }
+    for (const id in net.segments) { const o = net.segments[id]; if (!o.transition && !o.tunnel && o.line !== lineId && ((o.a === a && o.b === b) || (o.a === b && o.b === a)) && (!best || M.idNum(o.id) < M.idNum(best.id))) best = o; }
     return best;
   };
   // 并线运行（v2.3 玩家反馈）：线路 lid 从车站 from 起，沿线路 other 的既有轨道一直延伸到 to，逐段共用轨道（共线运营，免建设费）。
@@ -485,7 +515,7 @@
     while (q.length && !prev.has(to)) { const s = q.shift(); for (const sg of adj.get(s)) { const o = sg.a === s ? sg.b : sg.a; if (!prev.has(o)) { prev.set(o, { s: s, seg: sg }); q.push(o); } } }
     if (!prev.has(to)) return { error: '沿「' + net.lines[other].name + '」到不了这座车站' };
     const path = []; for (let c = to; prev.get(c); c = prev.get(c).s) path.unshift(prev.get(c));
-    if (path.some(step => step.seg.transition)) return { error: '含高度转换的区段暂不支持并线运营。' };
+    if (path.some(step => step.seg.transition || step.seg.tunnel)) return { error: '含高度转换的区段暂不支持并线运营。' };
     const served = new Set(M.lineTopo(net, lid).stations || []);
     let added = 0;
     for (const step of path) {
@@ -760,7 +790,7 @@
   // 在既有轨道上插入车站（拆分段落）
   M.splitSegment = function (net, segId, x, y, opts, city) {
     const seg = net.segments[segId];
-    if (seg.transition) return { error: '请先把高度转换区段改为单一方式，再插入车站。' };
+    if (seg.transition || seg.tunnel) return { error: '请先移除区间的高度转换或山体隧道，再插入车站。' };
     const ctrl = M.segControl(net, seg);
     const g = M.geomFromControl(ctrl, seg.type, city);
     const d = U.distToPoly(x, y, g.pts);
@@ -832,7 +862,7 @@
           const id = M.newId(net, 'g');
           // 两侧建设方式不同时（如一侧地下、一侧高架），合并后的轨道沿用较长一侧的方式；另一侧在草案中按改建计费
           let type = s1.type;
-          if (s1.transition || s2.transition) notes.push('合并后将取消原区段的高度转换，相关轨道按改建计费。');
+          if (s1.transition || s2.transition || s1.tunnel || s2.tunnel) notes.push('合并后将取消原区段的高度转换或山体隧道，相关轨道按改建计费。');
           if (s1.type !== s2.type) {
             const A = net.stations[o1], B = net.stations[o2];
             const l1 = ctrlLen([[A.x, A.y]].concat(p1, [[st.x, st.y]])), l2 = ctrlLen([[st.x, st.y]].concat(p2, [[B.x, B.y]]));
@@ -899,6 +929,7 @@
       if (!net.stations[s.a] || !net.stations[s.b]) return '轨道 ' + id + ' 的端点车站不存在';
       if (!net.lines[s.line]) return '轨道 ' + id + ' 所属线路不存在';
       const t = s.transition;
+      if (s.tunnel && (!Array.isArray(s.tunnel) || s.tunnel.length !== 2 || !s.tunnel.every(Number.isFinite))) return '轨道 ' + id + ' 山体隧道洞口无效';
       if (t && (!Object.hasOwn(CFG.metro.levelM, t.to) || !Number.isFinite(t.x) || !Number.isFinite(t.y))) return '轨道 ' + id + ' 高度转换无效';
     }
     return null;
@@ -1073,7 +1104,7 @@
     let minCars = 8; for (const s of stIds) minCars = Math.min(minCars, mc.carsBySize[C.net.stations[s].size]);
     let runSec = 0; for (const t of legSec) runSec += t;
     return {
-      id: 0, lineId: B.lineId, line: line, color: line.color, label: M.svcLabel(line, sv), loop: loop, branch: false, main: false, svc: sv.id, baseId: B.id, skipped: (loop ? B.stIds.length : plan.ib - plan.ia + 1) - n,
+      id: 0, lineId: B.lineId, line: line, color: line.color, label: M.svcLabel(line, sv), loop: loop, branch: false, main: false, svc: sv.id, railFreq: sv.railFreq, baseId: B.id, skipped: (loop ? B.stIds.length : plan.ib - plan.ia + 1) - n,
       lvPen: stops.map(function (i) { return B.lvPen[i]; }), stIds: stIds, stIdx: stIdx, segRefs: legSeg, legSegs: legSegs, pts: pts, hs: hs, cum: cum, stopDist: stopDist, stopPt: stopPt, legLenM: legLenM, legSec: legSec, legV: B.legV,
       cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: loop ? runSec + mc.dwell * n : 2 * runSec + 2 * mc.dwell * Math.max(0, n - 2) + 2 * mc.turnaround, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh, opsK: opsLength / Math.max(1, totalLength),
     };
@@ -1144,7 +1175,7 @@
         // 不在主站台层停靠的车站（天地换乘的另一层站台）：进出站与换乘多走一段垂直通道
         const lvPen = rt.st.map(function (sid) { const st = net.stations[sid]; return M.platType(st, lid) !== st.type ? 1 : 0; });
         const route = {
-          id: C.routes.length, lineId: lid, line: line, color: line.color, label: label, loop: rt.loop, branch: tp.topo === 'branch', main: tp.main != null && rt.st[rt.st.length - 1] === tp.main, lvPen: lvPen,
+          id: C.routes.length, railFreq: line.railSplit ? line.railFreq / tp.routes.length : line.railFreq, lineId: lid, line: line, color: line.color, label: label, loop: rt.loop, branch: tp.topo === 'branch', main: tp.main != null && rt.st[rt.st.length - 1] === tp.main, lvPen: lvPen,
           stIds: rt.st, stIdx: stIdx, segRefs: legSeg, legSegs: legSeg.map(function (ref) { return [ref]; }), pts: pts, hs: hs, cum: cum, stopDist: stopDist, stopPt: stopPt, legLenM: legLenM, legSec: legSec, legV: legV,
           cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: cycleSec, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh, opsK: opsLength / Math.max(1, legLenM.reduce((a, b) => a + b, 0)),
         };
@@ -1237,6 +1268,19 @@
     res.paidLen = {};     // 确认后各轨道的“已付费长度”（米）：免费的小幅调整按它累计，累计超出免费额度即按延长收费
     for (const id in draft.stations) {
       const s = draft.stations[id], o = off.stations[id];
+      if (JSON.stringify(s.hillEntrance || null) !== JSON.stringify(o?.hillEntrance || null)) {
+        res.changes.mod.push('车站「' + s.name + '」' + (s.hillEntrance ? '设置高低出入口' : '移除高低出入口'));
+        for (const lid of M.stationLines(draft, id)) res.affectedLines.add(lid);
+        if (s.hillEntrance) {
+          const [x, y, z] = s.hillEntrance;
+          const site = M.checkSite(city, x, y, 'surface');
+          const distance = U.dist(s.x, s.y, x, y) * CFG.CELL_M;
+          if (!site.ok || !(distance >= 20 && distance <= 500) || !(Math.abs(z) >= 1 && Math.abs(z) <= 60)) {
+            conflict({ type: 'site', kind: 'station', ref: id, x, y, msg: s.name + '：' + (!site.ok ? site.msg : '站口须距主站 20–500 米，且高差为 1–60 米'), how: '在车站建设页重新设置高低出入口。' });
+          }
+          item('construction', '高低出入口 ' + s.name, M.stationCost(s.type, s.size, year) * (0.05 + distance / 5000 + Math.abs(z) / 600), id);
+        }
+      }
       const c = city.cellAt(s.x, s.y);
       let newSite = false;       // 需要按新站计费（拆迁等）
       let relocated = false;     // 位置或建设方式有变化：始终检查选址与站距（与是否收费无关）
@@ -1250,6 +1294,12 @@
         { const hf = M.heritageStationFee(city, s.x, s.y, s.type, s.size, year); if (hf > 0) item('construction', (city.heritage[c] === 2 ? '古建保护费 · 车站 ' : '历史城区保护费 · 车站 ') + s.name, hf, id); }
         newSite = true;
       } else {
+        if (CM.TOD && (s.tod || 0) > (o.tod || 0)) {
+          const level = s.tod, hub = M.stationLines(off, id).length >= 2;
+          const label = '商业开发 ' + s.name + ' · ' + CM.TOD.LEVELS[level].name;
+          res.changes.mod.push(label);
+          item('construction', label, CM.TOD.cost(level, year, o.size, hub) - CM.TOD.cost(o.tod || 0, year, o.size, hub), id);
+        }
         const moved = U.dist(s.x, s.y, o.x, o.y) * CFG.CELL_M;
         relocated = moved > 0.5 || s.type !== o.type;
         if (s.type !== o.type && ol.indexOf(s.type) >= 0) {
@@ -1383,7 +1433,7 @@
       if (!base || !base.length) { full = true; res.changes.add.push(shared ? '共线运营 ' + lbl + '（' + shareTxt + '）' : '新建轨道 ' + lbl + '（' + U.fmtKm(g.lenM) + '，' + CFG.metro.typeName[s.type] + '）'); res.affectedLines.add(s.line); }
       else {
         // 原轨道可能不止一段（拆除中间站后合并），逐段比较建设方式：全部不同按新建计费；部分不同则对不同的那部分按改建计费
-        const diffT = base.filter(function (b) { return off.segments[b].type !== s.type || JSON.stringify(off.segments[b].transition || null) !== JSON.stringify(s.transition || null); });
+        const diffT = base.filter(function (b) { return off.segments[b].type !== s.type || JSON.stringify(off.segments[b].transition || null) !== JSON.stringify(s.transition || null) || JSON.stringify(off.segments[b].tunnel || null) !== JSON.stringify(s.tunnel || null); });
         if (diffT.length === base.length) { full = true; res.changes.mod.push('轨道 ' + lbl + ' 改为' + CFG.metro.typeName[s.type] + (shared ? '（' + shareTxt + '）' : '（按新建计费）')); res.affectedLines.add(s.line); }
         else {
           const key = base.slice().sort().join('+');
@@ -1437,12 +1487,22 @@
       // 冲突
       const toUnder = { label: '改为地下（隧道）', op: 'segType', seg: id, value: 'underground' };
       const editSeg = { label: '调整线形', op: 'editSeg', seg: id };
+      if (g.invalidTunnel) conflict({ type: 'hill', kind: 'seg', ref: id, x: A.x, y: A.y, msg: lbl + '：山体隧道洞口超出区间', how: '在区间详情重新设置两个洞口。', fixes: [editSeg] });
+      if (g.tunnel) {
+        for (const metres of g.tunnel) {
+          const p = U.posAt(g.pts, g.cum, metres / CFG.CELL_M, {});
+          const c = city.cellAt(p.x, p.y);
+          if (c < 0 || city.waterDistAt(p.x, p.y) < 0 || city.cellLocked(c) || city.regions[city.region[c]].scenic || city.heritage?.[c] || city.protectedId?.[c] || city.lu[c] === LU.AIRPORT) {
+            conflict({ type: 'hill', kind: 'seg', ref: id, x: p.x, y: p.y, msg: lbl + '：隧道洞口须放在已开放、可施工的陆地上', how: '把洞口移到风景区或保护范围外的陆地。', fixes: [editSeg] });
+          }
+        }
+      }
       if (g.outside) conflict({ type: 'outside', kind: 'seg', ref: id, x: A.x, y: A.y, msg: lbl + '：超出地图范围', how: '把转弯点或车站移回地图内。', fixes: [editSeg] });
       // 通往地图外设施接驳口的区段（机场线等）可以穿过尚未开放的区域（区段上不能设站，车站仍须建在已开放区域）；永久不开放的区域除外
       const pEnd = CM.Fac && (CM.Fac.isPortalStation(A) || CM.Fac.isPortalStation(B));
       for (const lk of g.locked) if (!pEnd || lk.open == null) conflict({ type: 'locked', kind: 'seg', ref: id, x: lk.x, y: lk.y, msg: lbl + '：经过尚未开放的区域「' + lk.name + '」', how: lk.open == null ? '该区域' + U.regionLock(lk) + '，线路不能穿过。用「修改」工具拖动控制点绕开。' : '该区域' + U.regionLock(lk) + '，开放前不能建设。用「修改」工具拖动控制点绕开，或等区域开放后再建。', fixes: [editSeg, { label: '删除该区段', op: 'removeSeg', seg: id }] });
       for (const { type, g:part } of g.parts || [{ type:s.type, g }]) {
-        if (part.hillM > 1 && type !== 'underground') conflict({ type: 'hill', kind: 'seg', ref: id, x: part.hillHit[0], y: part.hillHit[1], msg: lbl + '：穿过' + part.hillHit[2] + '，风景区禁止地面/高架轨道', how: '风景区内只能以隧道穿越。把这段轨道改为地下即可（会增加山体隧道费用），或调整线形绕开。', fixes: [toUnder, editSeg] });
+        if (part.hillM > 1 && type !== 'underground') conflict({ type: 'hill', kind: 'seg', ref: id, x: part.hillHit[0], y: part.hillHit[1], msg: lbl + '：穿过' + part.hillHit[2] + '，风景区禁止地面/高架轨道', how: '风景区内只能以隧道穿越。把这段轨道改为地下，或在区间详情设置山体隧道洞口以保留轨面标高。', fixes: [toUnder, editSeg] });
         if ((part.herM > 1 || part.guardM > 1) && type !== 'underground' && part.herHit && !s.inherited && touched.has(id)) conflict({ type: 'protected', kind: 'seg', ref: id, x: part.herHit[0], y: part.herHit[1], msg: part.herHit[3] === 2 ? lbl + '：地面/高架轨道将穿过「' + part.herHit[2] + '」，这里只能走地下' : lbl + '：地面/高架轨道将穿过历史城区「' + part.herHit[2] + '」，这里只能走地下', how: part.herHit[3] === 2 ? '改为地下线，或绕开保护范围。' : '改为地下线，或绕开历史城区。' });
         if (part.protM > 1 && type !== 'underground') conflict({ type: 'protected', kind: 'seg', ref: id, x: part.protHit[0], y: part.protHit[1], msg: lbl + '：地面/高架轨道将穿过受保护建筑「' + part.protNames.join('、') + '」', how: '历史建筑和重要地标不能拆除。改为地下从下方穿越（需加固费用），或调整线形绕开。', fixes: [toUnder, editSeg] });
         // 运营中的机场（台北松山）：跑道与航站区只能地下穿越
@@ -1523,7 +1583,7 @@
     });
     // 地面线路平交
     const surf = [];
-    const surfacePoints = g => g.parts ? g.parts.find(p => p.type === 'surface').g.pts : g.pts;
+    const surfacePoints = g => g.parts ? g.parts.filter(p => p.type === 'surface').map(p => p.g.pts) : [g.pts];
     for (const id in draft.segments) {
       const s = draft.segments[id];
       if (s.type === 'surface' || s.transition?.to === 'surface') surf.push(s);
@@ -1532,7 +1592,7 @@
       const s1 = surf[a], s2 = surf[b];
       if (!touched.has(s1.id) && !touched.has(s2.id)) continue;
       const g1 = M.segGeom(draft, s1, city), g2 = M.segGeom(draft, s2, city);
-      const hit = polyCross(surfacePoints(g1), surfacePoints(g2), 0.3);
+      const hit = surfacePoints(g1).flatMap(p => surfacePoints(g2).map(q => polyCross(p, q, 0.3))).find(Boolean);
       if (!hit) continue;
       conflict({ type: 'level', kind: 'seg', ref: touched.has(s1.id) ? s1.id : s2.id, x: hit[0], y: hit[1], msg: '两条地面轨道平面交叉（' + (draft.lines[s1.line] ? draft.lines[s1.line].name : '') + ' 与 ' + (draft.lines[s2.line] ? draft.lines[s2.line].name : '') + '）', how: '地铁不能平面交叉。把其中一段改为高架或地下形成立体交叉，或在交叉处设换乘站。', fixes: [{ label: '改为高架', op: 'segType', seg: touched.has(s1.id) ? s1.id : s2.id, value: 'elevated' }, { label: '改为地下', op: 'segType', seg: touched.has(s1.id) ? s1.id : s2.id, value: 'underground' }] });
     }
@@ -1837,7 +1897,7 @@
   // 执行一键修复（在草案中）
   M.applyFix = function (net, fix) {
     switch (fix.op) {
-      case 'segType': { const s = net.segments[fix.seg]; if (s) { const co = M.coTrackSegs(net, s); s.type = fix.value; delete s.transition; M.syncCoTrack(net, s, co); } return {}; }
+      case 'segType': { const s = net.segments[fix.seg]; if (s) { const co = M.coTrackSegs(net, s); s.type = fix.value; delete s.transition; delete s.tunnel; M.syncCoTrack(net, s, co); } return {}; }
       case 'stationType': if (net.stations[fix.station]) net.stations[fix.station].type = fix.value; return {};
       case 'platType': M.setPlatform(net, fix.station, fix.line, fix.value); return {};
       case 'resetElevation': { const st = net.stations[fix.station]; if (st) delete st.elev; return {}; }

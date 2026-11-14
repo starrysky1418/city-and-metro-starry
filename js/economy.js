@@ -107,7 +107,7 @@
     if (daily && compiled) {
       const oi = this.opsIndex(year);
       ops += (daily.carKmW != null ? daily.carKmW : daily.carKm) * CFG.ops.carKmCost * oi;   // v2.5：车厢公里按车型的运营成本系数加权
-      for (const s of compiled.stations) ops += CFG.ops.stationDaily[s.size] * oi;
+      for (const s of compiled.stations) if (!s.rail || compiled.net.lines.l900000?.railOwned) ops += CFG.ops.stationDaily[s.size] * oi;
     }
     return { fareWan, ops };
   };
@@ -115,6 +115,8 @@
     const { fareWan, ops } = quote || this.dayQuote(daily, compiled, year);
     this.income('fare', fareWan);
     this.spend('ops', ops);
+    const railway = compiled?.net.lines.l900000;
+    if (railway?.railOwned && railway.railShare) this.spend('pppOut', (daily?.ready ? daily.railFare || 0 : 0) * railway.railShare / 10000);
     this.cur.days++;
     if (dt === 'we') this.cur.weDays = (this.cur.weDays || 0) + 1; else if (dt === 'wd') this.cur.wdDays = (this.cur.wdDays || 0) + 1;
     this.lastDay = { fare: fareWan, ops: ops, dt: dt || null };

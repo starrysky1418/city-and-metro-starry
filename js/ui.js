@@ -1349,12 +1349,20 @@
     const ev = g.draftEval();
     this.open['dr-conflicts'] = true;
     this.openPage('build', null, { replaceTop: true });
-    if (ev.conflicts.length) { const c = ev.conflicts[0]; this.hoverConflict = c.n; this.flyTo(c.x, c.y, Math.max(this.R.cam.zoom, 20)); }
+    const conflict = ev.conflicts.find(c => Number.isFinite(c.x) && Number.isFinite(c.y));
+    if (conflict) { this.hoverConflict = conflict.n; this.flyTo(conflict.x, conflict.y, Math.max(this.R.cam.zoom, 20)); }
     const el = this.rBody.querySelector('.cf-list');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  UI.prototype.confirmDraft = function (ids, quotedTotal) {
+  UI.prototype.confirmDraft = function (ids, quotedTotal, acceptFleetWarning) {
     const g = this.g();
+    const ev = ids ? g.draftPhaseQuote(ids).ev : g.draftEval();
+    const fleetWarnings = ev?.warnings.filter(w => w.kind === 'fleetPlatform') || [];
+    if (!acceptFleetWarning && fleetWarnings.length) {
+      this.confirm('现有列车将无法上线', fleetWarnings.map(w => w.msg).join('\n'), '仍然建设',
+        () => this.confirmDraft(ids, quotedTotal, true), false, 'warn');
+      return;
+    }
     // 记录新增的线路、车站与区段，用于建成反馈
     const dn = g.draft ? g.draft.net : null, on = g.net;
     const newLines = [], newSt = [], newSeg = [];
@@ -1958,7 +1966,7 @@
   UI.prototype.draftPhaseBlock = function () {
     const g = this.g(), self = this, d = g.draft, plan = d.net, groups = new Map(), available = new Set();
     for (const s of Object.values(plan.segments)) {
-      if (g.net.segments[s.id] || (s.base && s.base.length)) continue;
+      if (!g.draftTrackSelectable(s)) continue;
       if (!groups.has(s.line)) groups.set(s.line, []);
       groups.get(s.line).push(s);
       available.add(s.id);
@@ -1966,9 +1974,15 @@
     const renovations = [];
     for (const s of Object.values(plan.stations)) {
       const edits = g.draftStationEdits(s.id);
+      if (!g.net.stations[s.id] && !M.stationLines(plan, s.id).length) edits.push('独立建站');
       if (!edits.length) continue;
       renovations.push({ id:s.id, label:s.name + ' · ' + edits.join('、') });
       available.add(s.id);
+    }
+    for (const [id, order] of Object.entries(plan.trainOrders || {})) {
+      const model = CM.Fleet.model(order.model);
+      renovations.push({ id, label:'购车 · ' + model.short + ' · ' + order.cars + ' 节 × ' + order.n + ' 列' });
+      available.add(id);
     }
     const selection = new Set((d.phaseIds || []).filter(id => available.has(id)));
     d.phaseIds = Array.from(selection);
@@ -1980,7 +1994,7 @@
         const master = h('input', { type: 'checkbox', 'aria-label': '全选 ' + plan.lines[lid].name });
         const rows = h('div', { style: { paddingLeft: '14px' } });
         const inputs = segs.map(function (s) {
-          const label = plan.stations[s.a].name + ' — ' + plan.stations[s.b].name;
+          const label = (g.net.segments[s.id] ? '改建 · ' : '') + plan.stations[s.a].name + ' — ' + plan.stations[s.b].name;
           const input = h('input', { type: 'checkbox', checked: selection.has(s.id) });
           input.addEventListener('change', function () {
             if (input.checked) selection.add(s.id); else selection.delete(s.id);
@@ -2007,7 +2021,7 @@
         box.appendChild(h('details', { open: groups.size === 1 || segs.some(s => selection.has(s.id)) }, h('summary', null, plan.lines[lid].name + ' · ' + segs.length + ' 段'), h('label', { class: 'row small' }, master, '全选本线路'), rows));
       }
       if (renovations.length) {
-        const rows = h('details', { open:true }, h('summary', null, '车站改造 · ' + renovations.length + ' 项'));
+        const rows = h('details', { open:true }, h('summary', null, '车站工程与购车 · ' + renovations.length + ' 项'));
         for (const { id, label } of renovations) {
           const input = h('input', { type:'checkbox', checked:selection.has(id) });
           input.addEventListener('change', function () {
@@ -2043,13 +2057,15 @@
           }
           const stationCost = Array.from(amounts.renovations.values()).reduce((sum, cost) => sum + cost, 0);
           reconciliation.textContent = '区段合计 ' + U.fmtMoney(amounts.total - amounts.other - stationCost) +
-            (renovations.length ? ' + 车站改造 ' + U.fmtMoney(stationCost) : '') +
+            (renovations.length ? ' + 车站工程与购车 ' + U.fmtMoney(stationCost) : '') +
             (amounts.other ? ' + 其他改动 ' + U.fmtMoney(amounts.other) : '') + ' · 整份草案 ' + U.fmtMoney(amounts.total);
           lastPrices = amounts;
         }
         phase = g.draftPhaseQuote(d.phaseIds);
         const can = g.canConfirm(phase);
-        const text = (phase.ev ? '本期费用 ' + U.fmtMoney(phase.ev.total) : '') + (can.ok ? ' · 资金已到位' : (phase.ev ? ' · ' : '') + can.reason);
+        const fleetWarning = phase.ev?.warnings.find(w => w.kind === 'fleetPlatform');
+        const text = (phase.ev ? '本期费用 ' + U.fmtMoney(phase.ev.total) : '') + (can.ok ? ' · 资金已到位' : (phase.ev ? ' · ' : '') + can.reason) +
+          (fleetWarning ? ' · ' + fleetWarning.msg : '');
         if (status.textContent !== text) status.textContent = text;
         build.disabled = !can.ok;
       };
@@ -2139,6 +2155,11 @@
     wrap.appendChild(this.callout('bad', 'error', h('span', null, h('b', null, '有 ' + ev.conflicts.length + ' 处冲突，需解决后才能确认建设。'), h('br'), '地图上的红色编号图钉标出了每处冲突的位置，相关轨道或车站以红色高亮。')));
     const list = h('div', { class: 'cf-list' });
     for (const c of ev.conflicts) {
+      if (c.kind === 'order') {
+        list.appendChild(h('div', { class:'cf-card' }, c.msg,
+          h('button', { class:'btn sm', onclick:() => self.g().edit(net => { delete net.trainOrders[c.ref]; }) }, '移除购车项目')));
+        continue;
+      }
       const fixes = h('div', { class: 'cf-fix' }), gd = this.tools && this.tools.guideFor ? this.tools.guideFor(c) : null;
       fixes.appendChild(h('button', { class: 'btn sm', onclick: function (e) { e.stopPropagation(); self.hoverConflict = c.n; self.flyTo(c.x, c.y, Math.max(self.R.cam.zoom, 22)); } }, ic('locate'), '定位'));
       // 试算得到的具体调整（v2.3）：一键按建议移动转弯点或车站
@@ -2616,7 +2637,7 @@
         const osm = h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, 'openstreetmap.org/copyright');
         return [h('div', { class: 'about-head' },
             h('img', { class: 'logo-ink', src: 'img/logo-navy.png', alt: '' }),
-            h('div', null, h('div', { class: 'about-name' }, '城市与地铁'), h('div', { class: 'muted' }, '版本 v' + CFG.GAME_VERSION + ' · 网页版'))),
+            h('div', null, h('div', { class: 'about-name' }, '城市与地铁'), h('div', { class: 'muted' }, 'Starry 社区版 ' + CFG.COMMUNITY_VERSION))),
           group('版权与许可'),
           row('shield', '使用许可', doc('使用许可', 'LICENSE.txt'), '© 2026 VinsonFung，保留所有权利'),
           row('book', '第三方声明', doc('第三方声明', 'THIRD_PARTY_NOTICES.txt'), '游戏使用的开源组件与数据的许可说明'),

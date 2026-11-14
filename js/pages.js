@@ -228,7 +228,7 @@
     return { id, name:I.s.name, level, cost:total(level) - total(I.lv), net:I.net(level), gain:I.net(level) - I.net(I.lv) };
   };
   UI.prototype.buildTod = function (quotes) {
-    const g = this.g(), T = CM.TOD;
+    const g = this.g();
     if (!quotes.length || g.jumping || g.pending) return false;
     const next = quotes.map(q => this.todNext(q.id));
     if (next.some((q, i) => !q || q.level !== quotes[i].level || Math.abs(q.cost - quotes[i].cost) > 1e-6) ||
@@ -237,18 +237,11 @@
       return false;
     }
     const cost = next.reduce((sum, q) => sum + q.cost, 0), gain = next.reduce((sum, q) => sum + q.gain, 0);
-    if (!g.econ.isFree() && !g.econ.canAffordBuild(cost)) {
-      this.toast('资金不足：需要 ' + U.fmtMoney(cost), 'bad');
-      return false;
-    }
-    const title = next.length === 1 ? '车站商业开发：' + next[0].name + ' → ' + T.LEVELS[next[0].level].name : '批量商业开发 · ' + next.length + ' 座车站';
-    g.econ.spendBuild({ construction:cost }, title, { y:g.clock.y, m:g.clock.m, d:g.clock.d }, true);
-    patchDisplayMany(g, 'stations', next.map(q => [q.id, { tod:q.level }]));
-    this.R._smC = null;
-    const result = '预计每月净收益变化 ' + U.fmtMoney(gain);
-    g.logEvent({ tag:'经营', title, desc:'投入 ' + U.fmtMoney(cost) + ' · ' + result });
-    if (CM.Sound) CM.Sound.play('develop');
-    this.toast(title + ' · ' + result, gain < 0 ? 'warn' : 'good');
+    const result = g.edit(net => {
+      for (const q of next) if (net.stations[q.id]) net.stations[q.id].tod = q.level;
+    });
+    if (result.error) { this.toast(result.error, 'bad'); return false; }
+    this.toast('已加入建设草案 · ' + U.fmtMoney(cost) + ' · 预计每月净收益变化 ' + U.fmtMoney(gain), 'good');
     this.markUnsaved(); this.scheduleAutosave();
     return true;
   };
@@ -301,7 +294,9 @@
       const I = self.todInfo(id);
       if (!I || I.lv >= level) { q.skip++; return; }
       const cost = Math.max(0, T.cost(level, y, I.s.size, I.hub) - T.cost(I.lv, y, I.s.size, I.hub));
-      q.items.push({ id: id, cost: cost }); q.cost += cost; if (I.net(level) < 0) q.loss++;
+      const net = I.net(level), gain = net - (I.lv ? I.net(I.lv) : 0);
+      const payback = gain > 0 ? cost / (gain * 12) : Infinity;
+      q.items.push({ id, cost, net, gain, payback }); q.cost += cost; if (net < 0) q.loss++;
     });
     return q;
   };
@@ -311,12 +306,10 @@
     const current = this.batchTodQuote(q.items.map(function (it) { return it.id; }), q.level);
     if (!L || current.items.length !== q.items.length || Math.abs(current.cost - q.cost) > 0.001) return { error: '开发报价已变化，请重新选择开发等级后确认' };
     if (!q.items.length) return { error: '所选车站都已达到这一等级或还没有接入运营线路' };
-    if (!g.econ.isFree() && !g.econ.canAffordBuild(q.cost)) return { error: '资金不足：需要 ' + U.fmtMoney(q.cost) };
-    g.econ.spendBuild({ construction: q.cost }, '车站商业开发：' + q.items.length + ' 座车站 → ' + L.name, { y: g.clock.y, m: g.clock.m, d: g.clock.d }, true);
-    patchDisplayMany(g, 'stations', q.items.map(function (it) { return [it.id, { tod: q.level }]; }));
-    this.R._smC = null;
-    g.logEvent({ tag: '经营', title: '批量车站商业开发：' + q.items.length + ' 座', desc: '投入约 ' + U.fmtMoney(q.cost) + '，开发等级「' + L.name + '」' });
-    if (CM.Sound) CM.Sound.play('develop');
+    const result = g.edit(net => {
+      for (const it of q.items) if (net.stations[it.id]) net.stations[it.id].tod = q.level;
+    });
+    if (result.error) return result;
     this.markUnsaved(); this.scheduleAutosave();
     return { n: q.items.length };
   };
@@ -510,6 +503,24 @@
             else st.elev = value;
           });
         } })));
+    if (g.mapId === 'cq') {
+      const current = s.hillEntrance;
+      const height = h('input', { type: 'number', min: -60, max: 60, step: 1, value: current?.[2] ?? 15, 'aria-label': '第二入口相对主入口高差（米）' });
+      const button = h('button', { class: 'btn sm', onclick: function () {
+        const z = height.valueAsNumber;
+        if (!Number.isInteger(z) || !z || Math.abs(z) > 60) { height.focus(); return; }
+        self.tools.hillEntrancePick = { id, z, game: g };
+        button.textContent = '在地图上点击第二入口 · Esc 取消';
+      } }, current ? '重设第二入口' : '在地图上放置第二入口');
+      b.appendChild(h('div', { class: 'field' },
+        h('label', null, '高低出入口 · 相对主入口高差（米）'), height, button,
+        current ? h('span', null, (current[2] > 0 ? '高入口 +' : '低入口 ') + current[2] + ' m') : null,
+        current ? h('button', { class: 'btn sm', onclick: () => {
+          self.tools.hillEntrancePick = null;
+          g.edit(n => { delete n.stations[id].hillEntrance; });
+        } }, '移除第二入口') : null,
+        h('div', { class: 'note' }, '点击另一条街设置站口。高差计入步行时间，站口随草案施工。')));
+    }
     // 天地换乘：换乘站可为每条线路分别选择站台层（地下线与高架线同站换乘）
     if (lines.length > 1) {
       const box = h('div', { class: 'plat-levels' });
@@ -838,13 +849,29 @@
         const geo = M.segGeom(net, seg, g.city);
         el.appendChild(this.sec('ln-seg', '选中区段：' + net.stations[seg.a].name + '—' + net.stations[seg.b].name, '', function () {
           const b = h('div');
-          b.appendChild(self.kv([['长度', U.fmtKm(geo.lenM)], ['建设方式', CFG.metro.typeName[seg.type] + (geo.transitionTo ? ' → ' + CFG.metro.typeName[geo.transitionTo] : '')], !geo.parts && geo.waterM > 1 ? ['跨江', (seg.type === 'underground' ? '越江隧道 ' : '跨江桥梁 ') + U.fmtKm(geo.waterM)] : null, geo.hillM > 1 ? ['山体隧道', U.fmtKm(geo.hillM)] : null, ['最小曲线半径', isFinite(geo.minRadiusM) ? Math.round(geo.minRadiusM) + ' m' : '直线']]));
+          b.appendChild(self.kv([['长度', U.fmtKm(geo.lenM)], ['建设方式', CFG.metro.typeName[seg.type] + (geo.transitionTo ? ' → ' + CFG.metro.typeName[geo.transitionTo] : '')], !geo.parts && geo.waterM > 1 ? ['跨江', (seg.type === 'underground' ? '越江隧道 ' : '跨江桥梁 ') + U.fmtKm(geo.waterM)] : null, geo.tunnel ? ['山体隧道', U.fmtKm(geo.tunnel[1] - geo.tunnel[0])] : null, ['最小曲线半径', isFinite(geo.minRadiusM) ? Math.round(geo.minRadiusM) + ' m' : '直线']]));
           const tc = h('div', { class: 'seg-ctl', style: { marginTop: '8px' } });
           for (const t of ['underground', 'surface', 'elevated']) {
             const cost = M.trackCost(geo, t, g.clock.y);
-            tc.appendChild(h('button', { class: !seg.transition && seg.type === t ? 'on' : '', 'data-tip': '约 ' + U.fmtMoney(cost), onclick: function () { const c = (g.draft ? g.draft.net : g.net).segments[segId]; if (c && (c.type !== t || c.transition)) g.edit(function (n) { const s = n.segments[segId], co = M.coTrackSegs(n, s); s.type = t; delete s.transition; M.syncCoTrack(n, s, co); }); } }, CFG.metro.typeName[t]));
+            tc.appendChild(h('button', { class: !seg.transition && !seg.tunnel && seg.type === t ? 'on' : '', 'data-tip': '约 ' + U.fmtMoney(cost), onclick: function () { const c = (g.draft ? g.draft.net : g.net).segments[segId]; if (c && (c.type !== t || c.transition || c.tunnel)) g.edit(function (n) { const s = n.segments[segId], co = M.coTrackSegs(n, s); s.type = t; delete s.transition; delete s.tunnel; M.syncCoTrack(n, s, co); }); } }, CFG.metro.typeName[t]));
           }
           b.appendChild(h('div', { class: 'field' }, h('label', null, '改变建设方式（按新建计费；跨江：地下=隧道，地面/高架=桥梁）'), tc));
+          if (seg.type !== 'underground' || (seg.transition && seg.transition.to !== 'underground')) {
+            const limit = Math.floor(geo.lenM);
+            const form = h('form', { class: 'field', onsubmit: function (e) {
+              e.preventDefault();
+              const a = start.valueAsNumber, b = end.valueAsNumber;
+              end.setCustomValidity(b > a ? '' : '出口必须在入口之后');
+              if (!end.reportValidity()) return;
+              if (a >= 0 && b <= limit) g.edit(n => { n.segments[segId].tunnel = [a, b]; });
+            } });
+            const start = h('input', { type: 'number', min: 0, max: limit, required: true, 'aria-label': '入口距区间起点（米）', placeholder: '入口米数', oninput: () => end.setCustomValidity(''), value: seg.tunnel?.[0] ?? '' });
+            const end = h('input', { type: 'number', min: 0, max: limit, required: true, 'aria-label': '出口距区间起点（米）', placeholder: '出口米数', oninput: e => e.target.setCustomValidity(''), value: seg.tunnel?.[1] ?? '' });
+            form.append(h('label', null, '山体隧道（洞口距区间起点的米数，轨面标高连续）'), start, end,
+              h('button', { class: 'btn sm', type: 'submit' }, '设置洞口'),
+              seg.tunnel ? h('button', { class: 'btn sm', type: 'button', onclick: () => g.edit(n => { delete n.segments[segId].tunnel; }) }, '移除隧道') : '');
+            b.appendChild(form);
+          }
           if (geo.transitionTo) {
             const metres = Math.round(geo.transitionAt * CFG.CELL_M);
             b.appendChild(h('div', { class:'field' }, h('label', null, '转换点距区间起点（米）'), h('input', {
@@ -2117,11 +2144,13 @@
     const ym = g.ym();
     const corp = !!(CM.Corp && CM.Corp.enabled(g));   // 政府合同（v2.5）：经营挑战的真实城市
     let tab = id || this.taskTab || 'active';
-    if (tab === 'ppp' && !corp) tab = 'active';
+    const railway = CM.RailConcessions.definition(g);
+    if (tab === 'ppp' && !corp || tab === 'rail' && !railway) tab = 'active';
     this.taskTab = tab;
     const el = h('div', { class: 'tk-page' });
     const tabs = [['active', '进行中 ' + T.active.length, 'flag'], ['done', '已完成 ' + T.done.length, 'check'], ['failed', '未完成 ' + T.failed.length, 'error']];
     if (corp) tabs.push(['ppp', '合同' + (g.corp ? ' ' + (g.corp.tenders.length + g.corp.contracts.length) : ''), 'briefcase']);
+    if (railway) tabs.push(['rail', '铁路经营权', 'train']);
     el.appendChild(this.pageTabs(tabs, tab, function (t) {
       self.taskTab = t; const top = self.stack[self.stack.length - 1]; if (top && top.kind === 'tasks') top.id = t; self.renderPage(false); self.rBody.scrollTop = 0;
     }));
@@ -2273,6 +2302,49 @@
           lineBtn(o),
           h('button', { class: 'btn sm ghost', onclick: function () { T.decline(g, o.id); g.touch(); self.markUnsaved(); self.rerenderPage(); } }, '不感兴趣')));
     };
+    if (tab === 'rail') {
+      const R = CM.RailConcessions, q = R.terms(g, railway);
+      body.appendChild(h('h3', null, railway.name));
+      if (!R.available(g, railway)) {
+        body.appendChild(h('p', null, '客运服务及合同于 ' + railway.from + ' 年 ' + railway.month + ' 月开放。'));
+        return { title: '任务', el };
+      }
+      const local = h('input', { type:'number', min:1, max:railway.max, value:q.local, 'aria-label':'每小时每方向站站停班次' });
+      const express = h('input', { type:'number', min:0, max:railway.max-1, value:q.express, 'aria-label':'每小时每方向直达班次' });
+      const quote = h('p', null), result = h('p', { role:'status' });
+      const values = () => ({local:local.valueAsNumber, express:railway.id==='jin'?express.valueAsNumber:0});
+      const update = () => {
+        const v = values(), terms = R.terms(g, railway, v);
+        const valid = Number.isInteger(v.local) && v.local >= 1 && Number.isInteger(v.express) && v.express >= 0 && v.local+v.express<=railway.max;
+        quote.textContent = valid ? (g.railConcession ? '已接管' : '首付 ' + U.fmtMoney(q.entry)) + ' · 本次支付 ' + U.fmtMoney(R.due(g,railway,v)) + ' · 每月 ' + U.fmtMoney(terms.monthly) + (railway.share ? '，另付该线估算票款的 8%' : '，按购买的客运时刻计费') : '总班次须在 1–' + railway.max + ' 之间，且至少保留一班站站停。';
+        confirm.disabled = preview.disabled = !valid;
+      };
+      const confirm = h('button', { class:'btn primary', onclick:() => {
+        const v=values(), err=R.change(g,v.local,v.express);
+        if(err) result.textContent=err; else self.rerenderPage();
+      } }, g.railConcession?'更新班次':'签约接管');
+      const preview = h('button', { class:'btn', onclick:() => {
+        if (g.pending || g.jumping || g.model.predJob) { result.textContent='交通模型正在计算，请稍后重试。'; return; }
+        result.textContent='正在预测客流与财政…';
+        const plan=values(), compiled=R.compile(g.net,g,plan);
+        g.model.predict(compiled,['l900000'],r=>{
+          const next=g.econ.dayQuote(r.draft,compiled,g.clock.y);
+          const base=g.econ.dayQuote(r.base,g.compiled,g.clock.y), terms=R.terms(g,railway,plan);
+          const month=U.daysInMonth(g.clock.y,g.clock.m), current=g.railConcession?q.monthly:0;
+          const net=(next.fareWan-next.ops-base.fareWan+base.ops-((r.draft.railFare||0)-(r.base.railFare||0))*(railway.share||0)/10000)*month-terms.monthly+current;
+          const flow=r.lines[0];
+          result.textContent='铁路日上车 '+U.fmtInt(flow.before)+' → '+U.fmtInt(flow.after)+' 人次 · 预计每月净现金变化 ' + (net>=0?'+':'−') + U.fmtMoney(Math.abs(net)) + '（首付另计） · 全城平均通勤 ' + U.fmtNum(r.base.commute,1) + ' → ' + U.fmtNum(r.draft.commute,1) + ' 分钟';
+        });
+      } },'预测效果');
+      local.addEventListener('input',update); express.addEventListener('input',update);
+      body.append(h('p', null, '铁路已参与客流分配。签约可调整客运班次，列车由合同提供，票价沿用线网票制。' + (railway.id==='jin'?' 每方向每小时最多 4 班，夜间为货运保留。':'')),
+        h('label', null,'站站停（班／小时／方向）',local), railway.id==='jin'?h('label',null,'直达（班／小时／方向）',express):'',
+        quote,preview,confirm,result);
+      const stops=g.compiled.stations.filter(s=>s.rail===railway.id);
+      body.appendChild(h('div',{class:'row'},stops.map(s=>h('button',{class:'btn sm',onclick:()=>self.locatePoint(s.x,s.y,s.name,1)},s.name))));
+      update();
+      return { title: '任务', el };
+    }
     if (tab === 'ppp') { this.corpTab(body); return { title: '任务', el: el }; }
     if (tab === 'active') {
       if (!ch) body.appendChild(this.callout('info', 'info', '自由建造模式：任务仅供参考，没有奖励，未完成也不会有后果。'));
