@@ -98,7 +98,7 @@
     };
     const title = CM.I18n && CM.I18n.get() === 'en' ? h('h1', { class: 'start-title' }, '城市与地铁') : h('h1', { class: 'start-title' }, '城市', h('span', { class: 'yu' }, '与'), '地铁');
     const wrap = h('div', { class: 'start-wrap' },
-      title, h('div', { class: 'start-foot' }, 'Starry 版 1.0 · 社区修改版'), h('div', { html: TITLE_DECO }),
+      title, h('div', { class: 'start-foot' }, 'Starry 版 ' + CFG.COMMUNITY_VERSION + ' · 社区修改版'), h('div', { html: TITLE_DECO }),
       h('div', { class: 'start-menu' },
         btn('play', '开始游戏', function () { self.showMapSelect(null, 'fwd'); }, { primary: true, sub: '选择地图' }),
         btn('clock', '继续游戏', function () { if (latest) self.loadSlot(latest.slotId); }, { disabled: !latest, sub: latest ? ((CM.MAPS[latest.map || 'gz'] || {}).name || '') + ' · ' + latest.date[0] + '年' + latest.date[1] + '月' : '暂无存档' }),
