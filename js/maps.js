@@ -68,6 +68,8 @@
   for (const id in MAPS) {
     const m = MAPS[id], G = m.geo;
     m.mapVersion = m.mapVersion || 1;
+    G.w ??= m.cfg.W;
+    G.h ??= m.cfg.H;
     m.fp = U.fnv([id, m.cfg.W, m.cfg.H, (G.water || []).length, (G.roads || []).length, (G.names || []).length, (m.data.regions || []).map(function (r) { return r.id; }).join(',')].join('|'));
   }
   // 位置校正（v2.3 玩家反馈：杭州站位置错位）：部分手填坐标取自国内地图（GCJ-02 坐标系），比 OSM（WGS-84）偏东南 400–600 m。
@@ -166,7 +168,7 @@
   for (const id of ['hz','wh']) {
     const mp=MAPS[id],steps=mp.migrate;
     mp.migrate=function(payload,from){
-      if(from!==1&&from!==2&&from!==3)throw new Error('不支持的地图数据版本');
+      if(from<1||from>=mp.mapVersion)throw new Error('不支持的地图数据版本');
       return steps(payload,from===2?3:from);
     };
   }

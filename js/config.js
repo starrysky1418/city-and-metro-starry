@@ -3,7 +3,7 @@
 (function (CM) {
   CM.CFG = {
     GAME_VERSION: '2.7.0',  // Engine and save metadata version.
-    COMMUNITY_VERSION: '1.3.1',
+    COMMUNITY_VERSION: '1.4',
     TRAFFIC_MODEL: 4,      // 轻量交通更新；与显示版本独立，确保 v3 存档仍触发安全迁移
     RULES_REVISION: 7,     // 保持 7：社区版未改存档结构，避免对旧档触发规则升级迁移
     SAVE_FORMAT: 'city-metro-save',
@@ -165,6 +165,7 @@
       fareSens: 10.8, fareOver: 25,
       walkW: 1.6, waitW: 1.5,
       transferPen: 4, outTransferPen: 6,
+      xferBase: 2.4,            // 同台换乘基础寻路惩罚（等效分钟）
       carAccess: 4,             // 停车与取车附加分钟
       // 以下为估算曲线：[年份, 值]
       vot: [[1990, 2.5], [1995, 5], [2000, 9], [2005, 14], [2010, 22], [2015, 32], [2020, 42], [2030, 58], [2050, 80]], // 元/小时

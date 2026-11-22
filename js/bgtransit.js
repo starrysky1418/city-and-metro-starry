@@ -78,19 +78,36 @@
   };
   // 年份或地图变化时调整列车与渡轮的数量
   BG.sync = function (g) {
-    const D = CM.DATA, y = g.clock.y, key = (CM.mapId || '') + ':' + y + ':' + g.city.N;
+    const D = CM.DATA, y = g.clock.y, t = y + (g.clock.m - 1) / 12;
+    const lines = D.bg?.lines;
+    const date = v => Array.isArray(v) ? v[0] + ((v[1] || 1) - 1) / 12 : v;
+    const active = lines?.filter(l => (l.y0 == null || t >= date(l.y0)) && (l.y1 == null || t < date(l.y1)));
+    const key = (CM.mapId || '') + ':' + y + ':' + g.city.N + ':' + (active?.map(l => l.id).join(',') || '');
     if (key === BG.key && BG.city === g.city) return;
     if (BG.city !== g.city) { BG.trains = []; BG.boats = []; }
     BG.city = g.city;
     BG.key = key;
     const rk = rkey(), bg = CM.Eras && CM.Eras.bg ? CM.Eras.bg(g.year()) : null, share = bg ? bg.share : 0;
-    BG.routes = railRoutes(y);
+    const routePoints = l => {
+      if (!l.path) return l.stops.map(s => [s[1], s[2]]);
+      const p = CM.Geo.dec(l.path), pts = [];
+      for (let i = 0; i < p.length; i += 2) pts.push([p[i], p[i + 1]]);
+      return pts;
+    };
+    const rail = active?.filter(l => l.kind === 'rail').map(l => {
+      const pts = routePoints(l), cum = U.cumLen(pts);
+      return { pts, cum, total: cum[cum.length - 1], hsr: false };
+    });
+    BG.routes = rail || railRoutes(y);
     const nT = BG.routes.length ? Math.min(BG.routes.length * 2, Math.round(3 + 30 * share)) : 0;
     BG.trains = BG.trains.filter(function (t) { return t.r < BG.routes.length; });
     while (BG.trains.length < nT) BG.trains.push(newTrain(BG.routes, rk));
     for (let i = nT; i < BG.trains.length; i++) BG.trains[i].out = true;   // 多出的列车驶到线路尽头后不再出现
     // 渡轮：航线按年份出现；船数随背景交通比重相对开局时的变化增减（至少一艘）
-    const fv = ((D.bgViz && D.bgViz.ferries) || []).filter(function (f) { return (!f.from || y >= f.from) && (!f.to || y <= f.to); });
+    const ferries = active?.filter(l => l.kind === 'ferry').map(l => ({
+      name: l.name, pts: routePoints(l), color: l.color, n: 1,
+    }));
+    const fv = ferries || ((D.bgViz && D.bgViz.ferries) || []).filter(function (f) { return (!f.from || y >= f.from) && (!f.to || y <= f.to); });
     const s0 = D.bg ? U.interp(D.bg.share, CM.CFG.START.y) : 0, ratio = s0 > 0 ? U.clamp(share / s0, 0.2, 1.2) : 1;
     BG.ferries = fv.map(function (f) { return { f: f, r: ferryRoute(f, g.city) }; });
     const boats = [];

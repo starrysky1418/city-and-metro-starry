@@ -88,3 +88,11 @@ Included license text: licenses/Simple-Icons-CC0-1.0.txt
 Adaptation: theme-dependent currentColor, cropped empty viewBox margins;
 the original path and proportions are unchanged. Bundled locally; no CDN requests.
 Brand names and marks remain the property of their respective owners.
+
+VinsonFung / City and Metro v2.9.6
+-----------------------------------
+The community edition incorporates the updated Hangzhou, Hong Kong, Tokyo, Taipei, Paris, Wuhan, Beijing and London maps and the Sydney 2000, Singapore 1980 and New York 1900 scenarios from https://github.com/VinsonFung/city-and-metro. Map geography is derived from OpenStreetMap contributors and is provided under ODbL 1.0. Scenario code is covered by the included non-commercial license.
+
+Qingdao and Xi’an geography
+-------------------------
+The Qingdao and Xi’an base maps (js/geo_qd.js and js/geo_xa.js) derive from OpenStreetMap contributors, ODbL 1.0, using the OpenFreeMap 2026-11-15 vector tile snapshot. See https://www.openstreetmap.org/copyright and https://openfreemap.org/.

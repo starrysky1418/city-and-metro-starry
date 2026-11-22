@@ -24,6 +24,33 @@
   };
   const M = function (o) { return Object.assign({ maps: null, max: 8, life: 30, kmh: 80 }, o, { look: Object.assign({}, LOOK[o.look] || LOOK.steel, o.lookX || {}) }); };
   const MODELS = F.MODELS = [
+    // 青岛三号线与西安不锈钢 B 型参考官方资料，采购和运营参数用于游戏平衡。
+    M({ id: 'qd-b80', maps: ['qd'], name: '青岛四方 B 型', short: '青岛 B 型', from: 2010, to: 2040, cap: 250, price: 425, ops: 0.92, max: 6, kmh: 80, look: 'steel', lookX: { band: '#2476ae' }, desc: '参考青岛 3 号线。游戏允许在开局提前采购。' }),
+    M({ id: 'qd-b120', maps: ['qd'], name: '青岛机场快线 B 型', short: '青岛机场快线', from: 2020, to: 9999, cap: 260, price: 545, ops: 1.04, max: 6, kmh: 120, look: 'whiteNew', lookX: { band: '#bc2863' }, desc: '参考青岛 8 号线，用于机场和跨湾快线。' }),
+    M({ id: 'qd-s160', maps: ['qd'], name: '青岛市域快车 S160', short: '青岛 S160', from: 2030, to: 9999, cap: 220, price: 685, ops: 1.24, max: 8, kmh: 160, look: 'future', lookX: { band: '#168aab' }, desc: '游戏虚构的市域动车组，为长距离跨湾走廊提供高速度。' }),
+    M({ id: 'xa-b80', maps: ['xa'], name: '西安不锈钢 B 型', short: '西安 B 型', from: 2006, to: 2040, cap: 245, price: 405, ops: 0.9, max: 6, kmh: 80, look: 'steel', lookX: { band: '#c83937' }, desc: '参考西安早期六节 B 型。游戏允许在开局提前采购。' }),
+    M({ id: 'xa-b100', maps: ['xa'], name: '西安机场城际 B 型', short: '西安机场城际', from: 2019, to: 9999, cap: 250, price: 490, ops: 0.98, max: 6, kmh: 100, look: 'whiteNew', lookX: { band: '#30a4aa' }, desc: '参考西安机场线的六节车，适合西安北站至咸阳机场。' }),
+    M({ id: 'xa-s160', maps: ['xa'], name: '西咸市域快车 S160', short: '西咸 S160', from: 2030, to: 9999, cap: 225, price: 650, ops: 1.20, max: 8, kmh: 160, look: 'future', lookX: { band: '#824d9c' }, desc: '游戏虚构的市域动车组，用于跨城和机场快线。' }),
+    M({ id: 'sy-millennium', maps: ['sy'], name: '千禧双层列车', short: '千禧列车', from: 2002, to: 2011, cap: 280, price: 430, ops: 1.02, life: 35, max: 8, kmh: 100, look: 'steel', lookX: { band: '#e8b400' }, desc: '城铁在 2000 年代初订造的双层车，座位多，但上下车慢' }),
+    M({ id: 'sy-waratah', maps: ['sy'], name: '沃拉塔双层列车', short: '沃拉塔', from: 2011, to: 9999, cap: 290, price: 460, ops: 0.95, life: 35, max: 8, kmh: 115, look: 'whiteNew', lookX: { band: '#f2a900' }, desc: '有空调的新一代双层车，城铁的主力车型' }),
+    M({ id: 'sy-metropolis', maps: ['sy'], name: '悉尼地铁 Metropolis（阿尔斯通）', short: 'Metropolis', from: 2018, to: 9999, cap: 200, price: 420, ops: 0.8, life: 35, max: 8, kmh: 100, look: 'future', lookX: { band: '#168388' }, desc: '单层车厢、全自动运行，座位少、车门宽，上下车快' }),
+    M({ id: 'ny-gibbs', maps: ['ny1900', 'ny'], name: '吉布斯钢制车', short: '吉布斯车', from: 1900, to: 1916, cap: 150, price: 300, ops: 1.1, life: 35, max: 8, kmh: 50, look: 'wood', lookX: { body: '#6b3a2a' }, desc: '世界最早的全钢地铁车厢之一，1904 年起为纽约第一条地铁订造' }),
+    M({ id: 'ny-hiv', maps: ['ny1900', 'ny'], name: '高压控制车（Hi-V）', short: 'Hi-V', from: 1909, to: 1925, cap: 170, price: 330, ops: 1.05, life: 40, max: 8, kmh: 55, look: 'classicLine', lookX: { body: '#6b3a2a', band: '#e7dcc4' }, desc: '1910 年前后加装中门，上下车更快，一直用到 1950 年代末' }),
+    M({ id: 'ny-bmt', maps: ['ny1900', 'ny'], name: 'BMT 标准车', short: 'BMT 标准车', from: 1914, to: 1930, cap: 210, price: 380, ops: 1, life: 45, max: 8, kmh: 60, look: 'classicLine', lookX: { body: '#5a6b52', band: '#e7dcc4' }, desc: '车身宽大，每节 67 英尺，运量明显提高' }),
+    M({ id: 'ny-r1', maps: ['ny1900', 'ny'], name: 'R1 型车', short: 'R1', from: 1930, to: 1948, cap: 220, price: 420, ops: 0.98, life: 45, max: 8, kmh: 65, look: 'classicLine', lookX: { body: '#3f5a42', band: '#d8d2bd' }, desc: '市营独立地铁的第一代车辆' }),
+    M({ id: 'ny-r10', maps: ['ny1900', 'ny'], name: 'R10 型车', short: 'R10', from: 1948, to: 1964, cap: 230, price: 500, ops: 0.96, life: 40, max: 8, kmh: 70, look: 'steel', lookX: { band: '#4a6fa5' }, desc: '战后第一批新车，全焊接车身，配动力制动' }),
+    M({ id: 'ny-r32', maps: ['ny1900', 'ny'], name: 'R32 型“亮车”', short: 'R32', from: 1964, to: 1975, cap: 240, price: 600, ops: 0.97, life: 55, max: 8, kmh: 75, look: 'steel', lookX: { band: '#2b6cb0' }, desc: '不锈钢车身，在线路上跑了将近 60 年' }),
+    M({ id: 'ny-r46', maps: ['ny1900', 'ny'], name: 'R46 型车', short: 'R46', from: 1975, to: 1999, cap: 260, price: 750, ops: 0.95, life: 45, max: 8, kmh: 80, look: 'steel', lookX: { band: '#2b6cb0' }, desc: '75 英尺长的大型车厢，运量很大，但一度故障频发' }),
+    M({ id: 'ny-r142', maps: ['ny1900', 'ny'], name: 'R142 型车', short: 'R142', from: 1999, to: 2010, cap: 270, price: 900, ops: 0.9, life: 40, max: 8, kmh: 90, look: 'whiteNew', desc: '新一代不锈钢车，有电子报站和交流电机' }),
+    M({ id: 'ny-r160', maps: ['ny1900', 'ny'], name: 'R160 型车', short: 'R160', from: 2006, to: 2023, cap: 280, price: 950, ops: 0.87, life: 40, max: 8, kmh: 90, look: 'whiteNew', desc: '数量最多的现役车型之一，车内有动态线路图' }),
+    M({ id: 'ny-r211', maps: ['ny1900', 'ny'], name: 'R211 型车', short: 'R211', from: 2023, to: 9999, cap: 300, price: 1000, ops: 0.84, life: 40, max: 8, kmh: 100, look: 'future', desc: '车门更宽，部分列车是贯通客室' }),
+    M({ id: 'sg-c151', maps: ['sg1980', 'sg'], name: '新加坡地铁 C151（川崎重工）', short: 'C151', from: 1986, to: 2000, cap: 310, price: 520, ops: 1, life: 35, max: 6, look: 'steel', lookX: { band: '#d42e12' }, desc: '首期工程的不锈钢 6 节编组列车' }),
+    M({ id: 'sg-c651', maps: ['sg1980', 'sg'], name: '新加坡地铁 C651（西门子）', short: 'C651', from: 1994, to: 2002, cap: 310, price: 520, ops: 0.97, max: 6, look: 'white', desc: '1990 年代增购的 6 节编组列车' }),
+    M({ id: 'sg-c751a', maps: ['sg1980', 'sg'], name: '东北线 C751A（阿尔斯通）', short: 'C751A', from: 2002, to: 2012, cap: 310, price: 500, ops: 0.92, max: 6, look: 'whiteNew', desc: '东北线的全自动列车' }),
+    M({ id: 'sg-c830', maps: ['sg1980', 'sg'], name: '环线 C830（阿尔斯通）', short: 'C830', from: 2008, to: 2018, cap: 290, price: 470, ops: 0.9, max: 4, look: 'whiteNew', desc: '环线的中运量全自动列车' }),
+    M({ id: 'sg-c151a', maps: ['sg1980', 'sg'], name: '新加坡地铁 C151A（川崎重工·四方）', short: 'C151A', from: 2010, to: 2020, cap: 310, price: 470, ops: 0.88, max: 6, look: 'whiteNew', desc: '南北线和东西线增购的列车' }),
+    M({ id: 'sg-r151', maps: ['sg1980', 'sg'], name: '新加坡地铁 R151（庞巴迪）', short: 'R151', from: 2018, to: 9999, cap: 310, price: 460, ops: 0.84, max: 6, look: 'future', desc: '替换首批车辆的新一代列车' }),
+    M({ id: 'sg-t251', maps: ['sg1980', 'sg'], name: '汤申—东海岸线 T251（川崎重工·四方）', short: 'T251', from: 2019, to: 9999, cap: 300, price: 460, ops: 0.84, max: 4, look: 'future', desc: '汤申—东海岸线的 4 节全自动列车' }),
     // 通用车型（虚构）：各城市都能买，按年代更替
     // 伦敦历史车型，来自原版 v2.7.0。
     M({ id: 'ld-steam', maps: ['ld'], name: '大都会铁路蒸汽列车', short: '蒸汽列车', from: 1860, to: 1906, cap: 150, price: 90, ops: 1.25, life: 20, max: 6, kmh: 40, look: 'wood', lookX: { body: '#6b3a2a' }, desc: '煤烟弥漫的隧道里跑的木质车厢，1905 年起被电气列车取代' }),

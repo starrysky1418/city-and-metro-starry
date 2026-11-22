@@ -427,22 +427,30 @@
       el.appendChild(this.sec('st-xfer', '换乘关系', '', function () {
         const b = h('div');
         if (lines.length > 1) b.appendChild(h('div', { class: 'small' }, '站内换乘：' + lines.map(function (l) { return l.name; }).join('、')));
+        const served = lines.filter(l => C.stationLines[k].has(l.id));
+        for (let i = 0; i < served.length; i++) for (let j = i + 1; j < served.length; j++) {
+          const a = served[i], d = served[j], x = M.xferKind(C, k, a.id, d.id);
+          b.appendChild(h('div', { class: 'small' }, a.name + ' ⇄ ' + d.name + ' · ' + x.label + ' · 寻路成本 ' + U.fmtNum(x.min, 1) + ' 等效分钟'));
+        }
         const net = g.model.net, acc = net.acc;
         const xs = acc.transfers.filter(function (t) { return t.a === k; });
         if (xs.length) {
           const edges = new Map();
           for (let e = 0; e < net.eType.length; e++) {
-            if (net.eType[e] === 3 && net.eFrom[e] === k) edges.set(net.eSt[e], e);
+            if (net.eType[e] !== 3 || (net.eFrom[e] !== k && net.eFrom[e] !== net.exits[k])) continue;
+            const dest = net.eSt[e], list = edges.get(dest) || [];
+            list.push(e);
+            edges.set(dest, list);
           }
           for (const t of xs) {
-            const o = C.stations[t.b], e = edges.get(t.b);
+            const o = C.stations[t.b], list = edges.get(t.b);
             const flow = h('span', { class: 'small' });
             b.appendChild(h('button', { class: 'small clickable', style: { padding: '3px 4px' }, onclick: function () { self.select({ kind: 'station', id: o.id }); } },
               '站外换乘 → ' + o.name + ' · 步行 ' + Math.round(t.m) + ' m（约 ' + Math.ceil(t.m / CFG.walk.mPerMin) + ' 分钟）', flow));
-            if (e !== undefined) this.live.push(function () {
+            if (list) self.live.push(function () {
               if (g.model.net !== net || g.model.dailyStale) return;
               const W = g.model.weights(g.clock.minute);
-              flow.textContent = ' · 当前 ' + U.fmtInt(g.model.edgeLoadAt(e, W)) + ' 人次/时';
+              flow.textContent = ' · 当前 ' + U.fmtInt(list.reduce((sum, e) => sum + g.model.edgeLoadAt(e, W), 0)) + ' 人次/时';
             });
           }
         }

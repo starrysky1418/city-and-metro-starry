@@ -117,8 +117,14 @@
     // 社区版不再展示指向原作者账号的小红书 / 抖音入口；B站入口指向 Starry 版作者本人的视频。
     const news = h('button', { class: 'corner-btn' + (newsSeen() ? '' : ' dot'), 'data-tip': '更新公告', 'aria-label': '更新公告', onclick: function () { self.showNews(function () { self.showStart(); }); } }, ic('megaphone'));
     this.startTheme = h('button', { class: 'corner-btn', 'aria-label': '切换深浅模式', onclick: function () { self.toggleTheme(); } });
-    const videoLink = h('a', { class: 'corner-btn', href: 'https://www.bilibili.com/video/BV1dnWU6xECS/', target: '_blank', rel: 'noopener noreferrer', 'data-tip': 'Starry 版介绍视频（B站）', 'aria-label': 'Starry 版介绍视频（B站）' }, ic('bilibili'));
-    const corner = h('div', { class: 'start-corner' }, news, videoLink, this.startTheme);
+    const videoLinks = [
+      ['https://www.bilibili.com/video/BV1DgsH6GErB/', 'B站', 'bilibili'],
+      ['https://v.douyin.com/216z3Tkpl6k/', '抖音', 'douyin']
+    ].map(([href, platform, icon]) => {
+      const label = 'Starry 版 1.3.1 宣传片（' + platform + '）';
+      return h('a', { class: 'corner-btn', href, target: '_blank', rel: 'noopener noreferrer', 'data-tip': label, 'aria-label': label }, ic(icon));
+    });
+    const corner = h('div', { class: 'start-corner' }, news, ...videoLinks, this.startTheme);
     this.openScreen(h('div', { class: 'start-root' }, wrap, corner), null, 'start' + (calm ? ' calm' : ''), tr || null);
     this.renderThemeBtns();
   };
