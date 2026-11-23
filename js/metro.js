@@ -947,6 +947,7 @@
     const used = new Set(Object.values(net.stations).map(s => s.name));
     const local = /^中国/.test(CM.curMap?.()?.region || '');
     const map = CM.curMap?.()?.id;
+    const preferStationAndRoad = map === 'qd' || map === 'xa';
     const entries = new Map();
     const add = function (n, d, priority) {
       if (!n || n.length > 16 || used.has(n)) return;
@@ -956,13 +957,16 @@
     let nearest = null, distance = 7;
     for (const [name, px, py, type] of D.stationPlaces || D.places) {
       const d = U.dist(x, y, px, py);
-      if (d < distance && (!local || (!administrativeName.test(name) && type !== 3))) {
+      if (d < distance && (!local || (!administrativeName.test(name) && type !== 3 && type !== 4))) {
         nearest = { n: name, x: px, y: py }; distance = d;
       }
       if (d > 3.2) continue;
       let priority = D.stationPlaces && type === 0 && d <= 1.2 ? -1 : 0;
       if (local && priority !== -1) {
-        if (administrativeName.test(name)) priority = 6;
+        if (preferStationAndRoad) {
+          if (administrativeName.test(name) || type === 3) continue;
+          priority = type === 0 || type === 1 ? 0 : type === 4 ? 1 : 2;
+        } else if (administrativeName.test(name)) priority = 6;
         else if (type === 0 || type === 1 || /广场$|博物馆$|大学$|机场$/.test(name)) priority = 0;
         else if (type === 3) priority = 6;
         else if (/[路街巷]$/.test(name)) priority = map === 'sh' ? 1 : 2;
@@ -983,7 +987,7 @@
         const p = way.p;
         for (let i = 0; i + 3 < p.length; i += 2) {
           const d = U.distToSeg(x, y, p[i], p[i + 1], p[i + 2], p[i + 3]);
-          if (d <= r) add(name, d, map === 'sh' ? 1 : 2);
+          if (d <= r) add(name, d, map === 'sh' || preferStationAndRoad ? 1 : 2);
         }
       }
     }

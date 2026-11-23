@@ -6,13 +6,15 @@
   const { lon0, lat0, kx, ky } = geo.proj;
   const point = (lon, lat) => [(lon - lon0) * kx, (lat0 - lat) * ky];
   const box = ([w, s, e, n]) => [[w, n], [e, n], [e, s], [w, s]].map(([lon, lat]) => point(lon, lat));
+  // Key interchange pins use actual station locations in the OSM snapshot.
+  const interchangePins = {"咸阳西站":[24.913,82.005],"沣河森林公园":[57.909,88.012],"奥体中心":[155.992,64.497],"纺织城":[173.784,106.35],"机场T5":[69.521,28.559]};
   const sites = [
     ["钟楼",108.947,34.259,48,94,"cbd",2006,0.058],
     ["北大街",108.947,34.273,62,63],
     ["永宁门",108.947,34.248,58,52,"scenic",2006,0.023],
     ["小寨",108.945,34.222,62,83,"shop",2006,0.044],
-    ["西安站",108.962,34.281,35,60,"rail",2006,0.045],
-    ["西安北站",108.938,34.377,39,67,"rail",2011,0.064],
+    ["西安站",108.962,34.281,35,60,"rail",2006,[[2006,9],[2025,8]]],
+    ["西安北站",108.938,34.377,39,67,"rail",2011,[[2011,5],[2025,17]]],
     ["行政中心",108.943,34.343,67,51],
     ["大明宫",108.967,34.3,40,37,"scenic",2010,0.026],
     ["大雁塔",108.965,34.219,35,43,"scenic",2006,0.033],
@@ -20,7 +22,7 @@
     ["高新区",108.879,34.2,54,94],
     ["三桥",108.833,34.29,61,38],
     ["沣河森林公园",108.759,34.298,28,21],
-    ["咸阳西站",108.668,34.32,36,49,"rail",2021,0.027],
+    ["咸阳西站",108.668,34.32,36,49,"rail",2021,[[2021,1.5],[2035,4]]],
     ["咸阳人民广场",108.708,34.33,70,67],
     ["咸阳湖",108.728,34.322,28,24,"scenic",2006,0.017],
     ["咸阳机场",108.756,34.439,11,59,"air",2006,[[2006,2],[2019,10],[2040,17]]],
@@ -32,7 +34,7 @@
     ["临潼",109.174,34.37,41,28],
     ["西安电子科技大学南校区",108.838,34.124,38,21,"uni",2006,0.026],
   ].map(([name, lon, lat, pop, jobs, kind, open, demand, close]) => {
-    const [x, y] = point(lon, lat);
+    const [x, y] = interchangePins[name] || point(lon, lat);
     return { name, x, y, pop, jobs, kind, open, demand, close };
   });
   const byName = new Map(sites.map(site => [site.name, site]));
@@ -83,7 +85,9 @@
   }));
   const data = {
     city: "西安", riverName: "渭河", hsrYear: 2011,
-    lineColorsNice: CM.DATA.lineColorsNice, plans: CM.DATA.plans, places: geo.places.concat(sites.map(({name,x,y}) => [name,x,y,2])),
+    lineColorsNice: CM.DATA.lineColorsNice, plans: CM.DATA.plans,
+    places: geo.places.filter(p => p[3] !== 4).concat(sites.map(({ name, x, y }) => [name, x, y, 2])),
+    stationPlaces: geo.places.concat(sites.filter(s => !s.kind || s.kind !== "rail").map(({ name, x, y }) => [name, x, y, 2])),
     rural: { pop: 180, jobs: 75 },
     regions, defaultRegion: { id: 'outer', name: '外围镇区', plan: 'res', open: 2020, pop: 240000 },
     centers: sites.map(({ name, x, y, pop, jobs }) => ({ name, x, y, pop: pop * 1000, jobs: jobs * 1000, r: 5 })),
@@ -93,7 +97,7 @@
     })),
     facilities: hubs.map(({ name, kind, open, demand, close }, i) => ({
       id: 'xa-hub-' + i, lm: 'xa-hub-' + i, n: name, t: kind, y0: Array.isArray(open) ? open : [open, 1], y1: close,
-      ...(kind === 'air' ? { pax: demand } : { w: demand }),
+      ...(kind === 'air' || kind === 'rail' ? { pax: demand } : { w: demand }),
     })),
     runways, roadYears: {}, bridgeYears: {}, simRoads: [], events, histTasks,
     traits: [{ use: 'finance', flavor: 'cn' }],

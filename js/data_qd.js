@@ -6,8 +6,10 @@
   const { lon0, lat0, kx, ky } = geo.proj;
   const point = (lon, lat) => [(lon - lon0) * kx, (lat0 - lat) * ky];
   const box = ([w, s, e, n]) => [[w, n], [e, n], [e, s], [w, s]].map(([lon, lat]) => point(lon, lat));
+  // Key interchange pins use actual station locations in the OSM snapshot.
+  const interchangePins = {"青岛站":[125.431,175.955],"五四广场":[149.119,175.57],"青岛北站":[147.902,128.992],"红岛站":[81.195,94.115],"井冈山路":[79.755,224.712]};
   const sites = [
-    ["青岛站",120.312,36.064,28,67,"rail",2010,0.039],
+    ["青岛站",120.312,36.064,28,67,"rail",2010,[[2010,5],[2025,8]]],
     ["中山公园",120.356,36.062,32,30,"scenic",2010,0.02],
     ["台东",120.354,36.084,60,65,"shop",2010,0.039],
     ["五四广场",120.383,36.064,40,95,"cbd",2010,0.059],
@@ -15,13 +17,13 @@
     ["市北区",120.375,36.104,62,46],
     ["四方",120.355,36.119,63,28],
     ["李村",120.421,36.158,78,53],
-    ["青岛北站",120.378,36.169,37,55,"rail",2014,0.044],
+    ["青岛北站",120.378,36.169,37,55,"rail",2014,[[2014,4],[2025,10]]],
     ["苗岭路",120.466,36.101,39,46],
     ["石老人",120.466,36.092,20,27,"scenic",2010,0.017],
     ["城阳",120.397,36.307,67,52],
     ["流亭机场",120.384,36.267,18,47,"air",2010,[[2010,3],[2019,7]],[2021,8]],
     ["红岛",120.257,36.244,24,27],
-    ["红岛站",120.198,36.267,10,29,"rail",2023,0.024],
+    ["红岛站",120.198,36.267,10,29,"rail",2023,[[2023,1],[2035,3]]],
     ["胶州",120.022,36.264,63,35],
     ["胶东机场",120.099,36.364,14,60,"air",[2021,8],[[2021,4],[2025,8],[2040,13]]],
     ["黄岛",120.211,36.026,56,60],
@@ -30,7 +32,7 @@
     ["灵山湾",120.047,35.917,35,32],
     ["金沙滩",120.238,35.968,12,21,"scenic",2010,0.02],
   ].map(([name, lon, lat, pop, jobs, kind, open, demand, close]) => {
-    const [x, y] = point(lon, lat);
+    const [x, y] = interchangePins[name] || point(lon, lat);
     return { name, x, y, pop, jobs, kind, open, demand, close };
   });
   const byName = new Map(sites.map(site => [site.name, site]));
@@ -79,9 +81,17 @@
     id: 'qd-' + (i + 1), appear: [open, 1], deadline: [end, 12], type: 'connect', title,
     desc: '用运营中的地铁连接' + names.join('、') + '。', anchors: names.map(anchor), reward: 40000 + i * 7500,
   }));
+  histTasks.push({
+    id: 'qd-airport-relocation', appear: [2021, 8], deadline: [2028, 12], type: 'connect',
+    title: '机场转场：从市中心接入胶东',
+    desc: '民航客流已由流亭转往胶东。用运营中的地铁连接五四广场、青岛北站与胶东机场，换乘也可达成。',
+    anchors: ['五四广场', '青岛北站', '胶东机场'].map(anchor), reward: 70000,
+  });
   const data = {
     city: "青岛", riverName: "胶州湾", seaName: '黄海', hsrYear: 2014,
-    lineColorsNice: CM.DATA.lineColorsNice, plans: CM.DATA.plans, places: geo.places.concat(sites.map(({name,x,y}) => [name,x,y,2])),
+    lineColorsNice: CM.DATA.lineColorsNice, plans: CM.DATA.plans,
+    places: geo.places.filter(p => p[3] !== 4).concat(sites.map(({ name, x, y }) => [name, x, y, 2])),
+    stationPlaces: geo.places.concat(sites.filter(s => !s.kind || s.kind !== "rail").map(({ name, x, y }) => [name, x, y, 2])),
     rural: { pop: 180, jobs: 75 },
     regions, defaultRegion: { id: 'outer', name: '外围镇区', plan: 'res', open: 2022, pop: 240000 },
     centers: sites.map(({ name, x, y, pop, jobs }) => ({ name, x, y, pop: pop * 1000, jobs: jobs * 1000, r: 5 })),
@@ -91,7 +101,7 @@
     })),
     facilities: hubs.map(({ name, kind, open, demand, close }, i) => ({
       id: 'qd-hub-' + i, lm: 'qd-hub-' + i, n: name, t: kind, y0: Array.isArray(open) ? open : [open, 1], y1: close,
-      ...(kind === 'air' ? { pax: demand } : { w: demand }),
+      ...(kind === 'air' || kind === 'rail' ? { pax: demand } : { w: demand }),
     })),
     runways, roadYears: {}, bridgeYears: {}, simRoads: [], events, histTasks,
     traits: [{ use: 'finance', flavor: 'cn' }],
