@@ -96,3 +96,5 @@ The community edition incorporates the updated Hangzhou, Hong Kong, Tokyo, Taipe
 Qingdao and Xi’an geography
 -------------------------
 The Qingdao and Xi’an base maps (js/geo_qd.js and js/geo_xa.js) derive from OpenStreetMap contributors, ODbL 1.0, using the OpenFreeMap 2026-11-15 vector tile snapshot. See https://www.openstreetmap.org/copyright and https://openfreemap.org/.
+
+The Ningbo base map (js/geo_nb.js) derives from OpenStreetMap contributors, ODbL 1.0, using the OpenFreeMap 2026-11-15 vector tile snapshot. See https://www.openstreetmap.org/copyright and https://openfreemap.org/.

@@ -24,6 +24,8 @@
   };
   const M = function (o) { return Object.assign({ maps: null, max: 8, life: 30, kmh: 80 }, o, { look: Object.assign({}, LOOK[o.look] || LOOK.steel, o.lookX || {}) }); };
   const MODELS = F.MODELS = [
+    M({ id: 'nb-b80', maps: ['nb'], name: '宁波地铁 B 型', short: '宁波 B 型', from: 2009, to: 9999, cap: 245, price: 420, ops: 0.92, max: 6, kmh: 80, look: 'steel', lookX: { band: '#167bbc' }, desc: '参考宁波轨道交通 1 号线六节 B 型车。游戏允许在开局提前采购。' }),
+    M({ id: 'nb-s160', maps: ['nb'], name: '宁波市域快车 S160', short: '宁波 S160', from: 2030, to: 9999, cap: 225, price: 660, ops: 1.21, max: 8, kmh: 160, look: 'future', lookX: { band: '#297c70' }, desc: '游戏虚构的市域快车，适合港区与奉化方向的长距离走廊。' }),
     // 青岛三号线与西安不锈钢 B 型参考官方资料，采购和运营参数用于游戏平衡。
     M({ id: 'qd-b80', maps: ['qd'], name: '青岛四方 B 型', short: '青岛 B 型', from: 2010, to: 2040, cap: 250, price: 425, ops: 0.92, max: 6, kmh: 80, look: 'steel', lookX: { band: '#2476ae' }, desc: '参考青岛 3 号线。游戏允许在开局提前采购。' }),
     M({ id: 'qd-b120', maps: ['qd'], name: '青岛机场快线 B 型', short: '青岛机场快线', from: 2020, to: 9999, cap: 260, price: 545, ops: 1.04, max: 6, kmh: 120, look: 'whiteNew', lookX: { band: '#bc2863' }, desc: '参考青岛 8 号线，用于机场和跨湾快线。' }),

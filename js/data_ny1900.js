@@ -35,7 +35,7 @@
   const BG_SHARE = shareYears.map(function (y) { return [y, +MODES.reduce(function (s, m) { return s + U.interp(m.share, y); }, 0).toFixed(3)]; });
 
   const data = {
-    city: '纽约', terrainRevision: 1, riverName: '东河', linkRoadYears: true,
+    city: '纽约', terrainRevision: 1, overlappingWater: true, riverName: '东河', linkRoadYears: true,
     seaZones: [
       { name: '哈德逊河', poly: poly([[40.9200, -74.0600], [40.9200, -73.9150], [40.8000, -73.9700], [40.7010, -74.0160], [40.7010, -74.0600]]) },
       { name: '上纽约湾', poly: poly([[40.7010, -74.1000], [40.7010, -74.0130], [40.6250, -74.0150], [40.5950, -74.0500], [40.5950, -74.1000]]) },

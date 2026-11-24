@@ -947,7 +947,7 @@
     const used = new Set(Object.values(net.stations).map(s => s.name));
     const local = /^中国/.test(CM.curMap?.()?.region || '');
     const map = CM.curMap?.()?.id;
-    const preferStationAndRoad = map === 'qd' || map === 'xa';
+    const preferStationAndRoad = map === 'qd' || map === 'xa' || map === 'nb';
     const entries = new Map();
     const add = function (n, d, priority) {
       if (!n || n.length > 16 || used.has(n)) return;

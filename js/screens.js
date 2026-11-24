@@ -131,12 +131,17 @@
 
   // ======================== 选择地图 ========================
   UI.prototype.showMapSelect = function (selId, tr) {
-    const self = this, all = CM.MAP_ORDER.slice();
+    const self = this;
+    const variants = { ny: ['ny', 'ny1900'], sg: ['sg', 'sg1980'] };
+    const cardOf = id => Object.keys(variants).find(key => variants[key].includes(id)) || id;
+    const scenarios = id => (variants[id] || [id]).filter(key => CM.MAPS[key]);
+    const all = CM.MAP_ORDER.filter(id => cardOf(id) === id);
+    const remembered = this._scenarioChoice || (this._scenarioChoice = {});
     let sel = selId && CM.MAPS[selId] ? selId : (this._mapSel && CM.MAPS[this._mapSel] ? this._mapSel : all[0]);
     const F = this._mapFilter || (this._mapFilter = { q: '', era: 'all', region: 'all' }), freeOpts = this._freeOpts || (this._freeOpts = {});
     if (selId) { F.q = ''; F.era = 'all'; F.region = 'all'; }
     const theme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
-    const eras = Array.from(new Set(all.map(function (id) { return eraOf(CM.MAPS[id]); }))).sort();
+    const eras = Array.from(new Set(CM.MAP_ORDER.map(function (id) { return eraOf(CM.MAPS[id]); }))).sort();
     const regions = REGION_ORDER.filter(function (r) { return all.some(function (id) { return CM.MAPS[id].region === r; }); });
     const back = function () { self.showStart('back'); };
 
@@ -175,11 +180,11 @@
       return true;
     };
     all.forEach(function (id, k) {
-      const mp = CM.MAPS[id], n = CM.Save.list(id).length;
-      const it = h('button', { class: 'ms2-item', role: 'option', 'data-id': id, style: { animationDelay: (0.03 * Math.min(k, 8)) + 's' }, onclick: function () { pick(id); }, ondblclick: function () { pick(id); goPrimary(); } },
+      const mp = CM.MAPS[id], group = scenarios(id), n = group.reduce((total, key) => total + CM.Save.list(key).length, 0);
+      const it = h('button', { class: 'ms2-item', role: 'option', 'data-id': id, style: { animationDelay: (0.03 * Math.min(k, 8)) + 's' }, onclick: function () { pickCard(id); }, ondblclick: function () { pickCard(id); goPrimary(); } },
         h('span', { class: 'ms2-thumb' }, CM.thumbInto(h('img', { alt: '' }), id, theme), mp.tutorial ? h('span', { class: 'ms2-flag' }, '教程') : null),
         h('span', { class: 'ms2-it' },
-          h('span', { class: 'ms2-name' }, h('b', null, mp.tutorial ? (mp.data.city || mp.name) : mp.name), h('em', null, String(mp.cfg.START.y))),
+          h('span', { class: 'ms2-name' }, h('b', null, mp.tutorial ? (mp.data.city || mp.name) : mp.name), h('em', null, group.map(key => CM.MAPS[key].cfg.START.y).join(' / '))),
           h('small', null, mp.tagline || mp.sub),
           h('span', { class: 'ms2-meta' }, levelEl(mp.difficulty || 2), h('span', { class: 'ms2-reg' }, mp.region || ''), n ? h('span', { class: 'ms2-prog', 'data-tip': n + ' 个进度' }, ic('save', 12), String(n)) : null)));
       items[id] = it; list.appendChild(it);
@@ -187,11 +192,11 @@
     list.appendChild(empty);
     const drawList = function () {
       let shown = 0;
-      for (const id of all) { const ok = match(id); items[id].classList.toggle('hidden-el', !ok); if (ok) shown++; }
+      for (const id of all) { const ok = scenarios(id).some(match); items[id].classList.toggle('hidden-el', !ok); if (ok) shown++; }
       empty.classList.toggle('hidden-el', shown > 0);
       count.textContent = shown === all.length ? '共 ' + all.length + ' 张' : shown + ' / ' + all.length + ' 张';
       // 当前选中的地图被筛掉时，选中第一张可见的地图
-      if (shown && items[sel].classList.contains('hidden-el')) { const first = all.find(function (id) { return !items[id].classList.contains('hidden-el'); }); if (first) pick(first, true); }
+      if (shown && !match(sel)) { const card = cardOf(sel); const next = !items[card].classList.contains('hidden-el') ? card : all.find(id => !items[id].classList.contains('hidden-el')); if (next) pickCard(next, true); }
     };
 
     // ---- 右侧舞台 ----
@@ -267,6 +272,16 @@
       });
       // 开始方式：经营挑战（主按钮）、自由建造（展开选项）、继续、读取存档
       const acts = h('div', { class: 'ms2-acts' });
+      const group = scenarios(cardOf(sel));
+      if (group.length > 1) {
+        const chooser = h('div', { class: 'fchips map-scenarios', role: 'group', 'aria-label': '开局剧本' });
+        for (const id of group) {
+          const scenario = CM.MAPS[id];
+          const label = scenario.cfg.START.y + ' 年 · ' + (id === cardOf(id) ? '社区剧本' : '原作者剧本');
+          chooser.appendChild(h('button', { class: 'fchip' + (id === sel ? ' on' : ''), 'aria-pressed': String(id === sel), onclick: function () { pick(id); stage.querySelector('[aria-pressed="true"]')?.focus(); } }, label));
+        }
+        acts.appendChild(chooser);
+      }
       if (mp.tutorial) acts.appendChild(modeBtn('free', 'play', 'b-teal', '开始教程', '主线 13 步、约 12 分钟：规划、管理与经营（不限资金）', true));
       else {
         const ch = modeBtn('challenge', 'trophy', 'b-gold', '经营挑战', '初始资金 ' + U.fmtMoney(mp.cfg.economy.startFunds, undefined, mp.cfg.money), true);
@@ -290,7 +305,8 @@
     let first = true;
     const drawStage = function () {
       self._mapSel = sel;
-      for (const id in items) { items[id].classList.toggle('on', id === sel); items[id].setAttribute('aria-selected', id === sel ? 'true' : 'false'); }
+      remembered[cardOf(sel)] = sel;
+      for (const id in items) { items[id].classList.toggle('on', id === cardOf(sel)); items[id].setAttribute('aria-selected', id === cardOf(sel) ? 'true' : 'false'); }
       const nd = buildStage();
       if (!first) nd.classList.add('swap-in');
       stage.replaceChildren(nd);
@@ -300,7 +316,12 @@
       if (sel === id) return;
       sel = id; if (!quiet) snd('soft');
       drawStage();
-      const it = items[id]; if (it && it.scrollIntoView) it.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const it = items[cardOf(id)]; if (it && it.scrollIntoView) it.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
+
+    const pickCard = function (id, quiet) {
+      const group = scenarios(id), preferred = remembered[id] || id;
+      pick(group.includes(preferred) && match(preferred) ? preferred : group.find(match) || preferred, quiet);
     };
 
     const rail = h('aside', { class: 'ms2-rail' },
@@ -314,16 +335,17 @@
     // 键盘：↑↓ 切换地图，Enter 开始（主按钮）
     root.addEventListener('keydown', function (e) {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+      if (e.target.closest('.map-scenarios')) return;
       if (e.key === 'Enter') { if (e.target === search || e.target === root) { e.preventDefault(); goPrimary(); } return; }
       const vis = all.filter(function (id) { return !items[id].classList.contains('hidden-el'); });
       if (!vis.length) return;
       e.preventDefault();
-      const k = vis.indexOf(sel), n = vis[(k + (e.key === 'ArrowDown' ? 1 : -1) + vis.length) % vis.length];
-      pick(n);
+      const k = vis.indexOf(cardOf(sel)), n = vis[(k + (e.key === 'ArrowDown' ? 1 : -1) + vis.length) % vis.length];
+      pickCard(n);
     });
     drawStage(); drawList();
     this.openScreen(root, back, 'msel2', tr || 'fwd');
-    requestAnimationFrame(function () { root.focus({ preventScroll: true }); const it = items[sel]; if (it) it.scrollIntoView({ block: 'nearest' }); });
+    requestAnimationFrame(function () { root.focus({ preventScroll: true }); const it = items[cardOf(sel)]; if (it) it.scrollIntoView({ block: 'nearest' }); });
   };
 
   // ======================== 开局简报 ========================
