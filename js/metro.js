@@ -1109,9 +1109,49 @@
     let runSec = 0; for (const t of legSec) runSec += t;
     return {
       id: 0, lineId: B.lineId, line: line, color: line.color, label: M.svcLabel(line, sv), loop: loop, branch: false, main: false, svc: sv.id, railFreq: sv.railFreq, baseId: B.id, skipped: (loop ? B.stIds.length : plan.ib - plan.ia + 1) - n,
-      lvPen: stops.map(function (i) { return B.lvPen[i]; }), stIds: stIds, stIdx: stIdx, segRefs: legSeg, legSegs: legSegs, pts: pts, hs: hs, cum: cum, stopDist: stopDist, stopPt: stopPt, legLenM: legLenM, legSec: legSec, legV: B.legV,
+      baseStops: stops.slice(), lvPen: stops.map(function (i) { return B.lvPen[i]; }), stIds: stIds, stIdx: stIdx, segRefs: legSeg, legSegs: legSegs, pts: pts, hs: hs, cum: cum, stopDist: stopDist, stopPt: stopPt, legLenM: legLenM, legSec: legSec, legV: B.legV,
       cars: minCars, cap: minCars * mc.carCap, runSec: runSec, cycleSec: loop ? runSec + mc.dwell * n : 2 * runSec + 2 * mc.dwell * Math.max(0, n - 2) + 2 * mc.turnaround, lenM: cum[cum.length - 1] * CFG.CELL_M, kmh, opsK: opsLength / Math.max(1, totalLength),
     };
+  };
+  // Estimate following time from the gap between local services and the running-time gain.
+  // Only stations skipped by the express can provide a passing opportunity.
+  M.following = function (C, route, localFreq, proposedStation) {
+    const base = C.routes[route.baseId], stops = route.baseStops;
+    if (!base || !route.skipped || !stops || !(localFreq > 0)) return null;
+    const gap = 3600 / localFreq, safe = 90;
+    const wait = gain => {
+      const window = Math.max(0, gap - safe);
+      return Math.max(0, gain - window);
+    };
+    const result = new Float32Array(route.legSec.length);
+    let gainSincePass = 0;
+    for (let k = 0; k < result.length; k++) {
+      const a = stops[k], b = stops[k + 1] ?? base.stIds.length;
+      let elapsed = 0;
+      for (let i = a; i < b; i++) elapsed += base.legSec[i] + (i > a ? CFG.metro.dwell : 0);
+      const gain = Math.max(0, elapsed - route.legSec[k]);
+      const passes = [];
+      for (let i = a + 1; i < b; i++) {
+        const st = C.net.stations[base.stIds[i]];
+        if (st && (st.passing?.[route.lineId] || st.id === proposedStation)) passes.push(i);
+      }
+      let left = a;
+      for (const right of [...passes, b]) {
+        const portion = gain * (right - left) / (b - a);
+        result[k] += wait(gainSincePass + portion) - wait(gainSincePass);
+        gainSincePass += portion;
+        if (right !== b) gainSincePass = 0;
+        left = right;
+      }
+    }
+    return result;
+  };
+  M.setPassing = function (net, stationId, lineId, enabled) {
+    const station = net.stations[stationId];
+    if (!station || !M.stationLines(net, stationId).includes(lineId)) return;
+    station.passing = { ...station.passing };
+    if (enabled) station.passing[lineId] = true;
+    else delete station.passing[lineId];
   };
   M.compile = function (net, city) { return M.withSegIndex([net], function () { return compile(net, city); }); };
   function compile(net, city) {
@@ -1298,6 +1338,13 @@
     res.paidLen = {};     // 确认后各轨道的“已付费长度”（米）：免费的小幅调整按它累计，累计超出免费额度即按延长收费
     for (const id in draft.stations) {
       const s = draft.stations[id], o = off.stations[id];
+      for (const lid of Object.keys(s.passing || {})) {
+        if (!s.passing[lid] || o?.passing?.[lid] || !M.stationLines(draft, id).includes(lid)) continue;
+        const type = M.platType(s, lid);
+        res.changes.mod.push('增设双向越行线 · ' + s.name + ' · ' + draft.lines[lid].name);
+        res.affectedLines.add(lid); touchedSt.add(id);
+        item('construction', '双向越行线 ' + s.name, M.stationCost(type, s.size, year) * 0.55, id);
+      }
       if (JSON.stringify(s.hillEntrance || null) !== JSON.stringify(o?.hillEntrance || null)) {
         res.changes.mod.push('车站「' + s.name + '」' + (s.hillEntrance ? '设置高低出入口' : '移除高低出入口'));
         for (const lid of M.stationLines(draft, id)) res.affectedLines.add(lid);

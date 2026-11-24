@@ -3,7 +3,7 @@
 (function (CM) {
   CM.CFG = {
     GAME_VERSION: '2.7.0',  // Engine and save metadata version.
-    COMMUNITY_VERSION: '1.5',
+    COMMUNITY_VERSION: '1.5.1',
     TRAFFIC_MODEL: 4,      // 轻量交通更新；与显示版本独立，确保 v3 存档仍触发安全迁移
     RULES_REVISION: 7,     // 保持 7：社区版未改存档结构，避免对旧档触发规则升级迁移
     SAVE_FORMAT: 'city-metro-save',

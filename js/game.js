@@ -147,7 +147,7 @@
       if (D.airport && yr >= D.airport.closeYear + 7 / 12 && city.lu.some(function (v) { return v === CM.LU.AIRPORT; })) city.closeAirport();
       let roads = false;
       for (const r of city.applyReclaim(y)) { roads = true; this.logEvent({ tag: r.tag || '史实', title: '填海成陆：' + r.name, desc: r.desc || '' }); }
-      if (city.applyRoads(y)) roads = true;
+      if (city.applyRoads(D.bay ? yr : y)) roads = true;
       city.activateLandmarks(y);
       const tot = city.totals();
       for (let k = 0; k < city.regions.length; k++) {
@@ -403,7 +403,8 @@
       if (CM.Milestones) CM.Milestones.onReclaim(this, r);
     }
     const before = city.roadsBuilt.slice();
-    if (this.jumping ? (yield* city.applyRoadsGen(y)) : city.applyRoads(y)) {
+    const roadYear = D.bay ? yr : y;
+    if (this.jumping ? (yield* city.applyRoadsGen(roadYear)) : city.applyRoads(roadYear)) {
       roadsChanged = true;
       const told = new Set();
       city.roadGroups.forEach((r, k) => {
@@ -672,6 +673,7 @@
   Game.prototype.draftStationEdits = function (id) {
     const before = this.net.stations[id], after = this.draft.net.stations[id], edits = [];
     if (!before || !after) return edits;
+    if (JSON.stringify(before.passing || {}) !== JSON.stringify(after.passing || {})) edits.push('越行线');
     if (before.size !== after.size) edits.push('规模');
     if ((before.tod || 0) !== (after.tod || 0)) edits.push('商业开发');
     if (before.x !== after.x || before.y !== after.y) edits.push('位置');
@@ -697,7 +699,7 @@
     for (const id of selected) {
       if (!this.draftStationEdits(id).length) continue;
       const s = plan.stations[id];
-      Object.assign(net.stations[id], { size:s.size, x:s.x, y:s.y, type:s.type, elev:s.elev, hillEntrance:s.hillEntrance, tod:s.tod });
+      Object.assign(net.stations[id], { size:s.size, x:s.x, y:s.y, type:s.type, elev:s.elev, hillEntrance:s.hillEntrance, passing:s.passing ? {...s.passing} : undefined, tod:s.tod });
       const station = net.stations[id];
       station.lv = Object.fromEntries(M.stationLines(this.net, id).map(lid =>
         [lid, M.platType(plan.lines[lid] ? s : this.net.stations[id], lid)]));
@@ -1124,7 +1126,7 @@
       if (CM.applyMoneyEra) CM.applyMoneyEra(g.clock.y, g.clock.m);
       g.city = new CM.City();
       yield* g.city.generateGen(g.seed, CFG.START.y, {deferGraphs:true});
-      yield* g.city.restoreGen(s.city, g.clock.y);
+      yield* g.city.restoreGen(s.city, g.clock.y, g.clock.m);
       // 全图解锁要在编译线网之前恢复：线路几何带有可建设范围的判断（玩家反馈：读档后已建线路在未开放区段报冲突）
       g.unlockAll = !!s.unlockAll && g.mode === 'free'; g.city.unlockAll = g.unlockAll;
       lp(0.3, '恢复城市');

@@ -113,6 +113,16 @@
       x = dlt(B.car, Dr.car, 0, '', false); g1.appendChild(this.stat('非地铁出行（人次/日）', U.fmtPeople(Dr.car), (Dr.car<=B.car?'减少 ':'增加 ')+U.fmtPeople(Math.abs(B.car-Dr.car))+' 人次', x[1]));
       x = dlt(B.fare, Dr.fare, 0, '', true); g1.appendChild(this.stat('票务收入（日）', U.fmtMoney(Dr.fare / 10000), U.fmtSigned(U.cur(Dr.fare - B.fare) / 10000, 1, ' ' + CFG.money.wan), x[1]));
       wrap.appendChild(g1);
+      if (CM.DATA.bay) {
+        const bay = h('div', { class: 'note' }, h('b', null, '胶州湾跨湾通勤'));
+        const minutes = (s, k) => s['bay' + k] > 0 ? U.fmtNum(s['bay' + (k + 1)] / s['bay' + k], 1) + ' 分钟' : '—';
+        const share = (k, n) => Dr['bay' + k] > 0 ? Math.round(100 * Dr['bay' + (k + n)] / Dr['bay' + k]) + '%' : '—';
+        for (const [name, k] of [['南线 · 青岛老城—黄岛', 0], ['北线 · 李沧—红岛', 5]]) {
+          bay.appendChild(h('div', null, name + ' · ' + minutes(B, k) + ' → ' + minutes(Dr, k) +
+            ' · 地铁 ' + share(k, 2) + ' / 轮渡 ' + share(k, 3) + ' / 道路 ' + share(k, 4)));
+        }
+        wrap.appendChild(bay);
+      }
       // 预测解读（v2.3）：与建成后的建设效果报告同一套归因
       if (res.stations) wrap.appendChild(this.sec('pr-why', '预计会怎样，为什么', '', function () {
         return CM.Impact.view(self, res, { pred: true, noKpi: true, ops: CM.Impact.opsInputs(g, g.compiled, g.draftCompiled()) });
@@ -495,6 +505,14 @@
       type: s.type, cur: s.size, base: official ? official.size : null, rebuild: !!official && official.type !== s.type,
       onPick: function (sz) { const c = latest(); if (c && c.size !== sz) g.edit(function (n) { n.stations[id].size = sz; }); },
     })));
+    for (const line of lines) {
+      const built = !!official?.passing?.[line.id], planned = !!s.passing?.[line.id];
+      const price = M.stationCost(M.platType(s, line.id), s.size, g.clock.y) * 0.55;
+      b.appendChild(h('div', { class: 'field' }, h('label', null, line.name + ' · 双向越行线'),
+        h('button', { class: 'btn sm', disabled: built, onclick: function () {
+          g.edit(n => M.setPassing(n, id, line.id, !planned));
+        } }, built ? '已建成' : planned ? '撤销越行线草案' : '加入草案 · ' + U.fmtMoney(price))));
+    }
     const tc = h('div', { class: 'seg-ctl' });
     for (const t of ['underground', 'surface', 'elevated']) tc.appendChild(h('button', { class: s.type === t ? 'on' : '', onclick: function () { const c = latest(); if (c && c.type !== t) g.edit(function (n) { n.stations[id].type = t; delete n.stations[id].elev; M.normalizeLevels(n); }); } }, CFG.metro.typeName[t], official && official.type === t && s.type !== t ? h('small', null, '（已建）') : null));
     b.appendChild(h('div', { class: 'field' }, h('label', null, (lines.length > 1 ? '主站台标高' : '车站标高') + (official ? '（改建按新建计费；选回已建形式即撤销改建）' : '')), tc));

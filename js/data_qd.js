@@ -70,6 +70,7 @@
     [2021,12,"跨海地铁贯通","现实中的1号线将西海岸接入东岸线网。","https://www.qd-metro.com/informationInfo.php?id=5211"],
     [2026,9,"机场快线进入主城","现实中的8号线南段接入五四广场。","https://jtt.shandong.gov.cn/art/2026/9/22/art_12459_10334095.html"],
   ].map(([y, m, title, desc, src]) => ({ y, m, title, desc, src, tag: '史实' }));
+  events.push({ y: 2011, m: 7, tag: '史实', title: '胶州湾桥隧通车', desc: '6 月 30 日，胶州湾大桥与隧道开放。跨湾道路出行更快，青岛—黄岛轮渡继续运营。', src: 'https://www.qingdao.gov.cn/ywdt/zwzl/smhd/smhd2011/sm2011_28/202109/t20210927_3323071.shtml' });
   events.unshift({ y: year, m: 1, tag: '模拟', title: '青岛开局', desc: '先建设一条服务主要居住区和就业区的地铁骨干。' });
   const histTasks = [
     [2010,2017,"主城第一条骨干",["青岛站","中山公园","五四广场"]],
@@ -87,7 +88,24 @@
     desc: '民航客流已由流亭转往胶东。用运营中的地铁连接五四广场、青岛北站与胶东机场，换乘也可达成。',
     anchors: ['五四广场', '青岛北站', '胶东机场'].map(anchor), reward: 70000,
   });
+  const ferryDocks = [point(120.296, 36.064), point(120.236, 36.064)];
+  const bayZones = [
+    [120.28, 36.045, 120.405, 36.105], [120.155, 35.925, 120.281, 36.084],
+    [120.338, 36.111, 120.473, 36.212], [120.205, 36.159, 120.333, 36.272],
+  ].map(bounds => { const [w,s,e,n] = bounds; return [point(w,n),point(e,s)]; });
   const data = {
+    bay: {
+      zones: bayZones, docks: ferryDocks, roadOpen: 2011.5,
+      bridgeBounds: [point(120.210, 36.189), point(120.345, 36.125)],
+      tunnelBounds: [point(120.251, 36.067), point(120.315, 36.022)],
+    },
+    scenarios: [{
+      id: 'qd-south-bay-commute', from: [2011, 7], to: [2030, 12], months: 72,
+      type: 'combo', theme: 'commute', title: '青黄跨湾通勤',
+      desc: '从接约当月起，将青岛老城与黄岛之间的工作日平均门到门通勤时间缩短 10%。',
+      parts: [{ kind: 'ops', type: 'bayCommute', areaName: '青岛老城—黄岛', corridor: 0, drop: 0.10 }],
+    }],
+    bgViz: { ferries: [{ name: '青岛—黄岛轮渡', pts: ferryDocks, n: 2 }] },
     city: "青岛", riverName: "胶州湾", seaName: '黄海', hsrYear: 2014,
     lineColorsNice: CM.DATA.lineColorsNice, plans: CM.DATA.plans,
     places: geo.places.filter(p => p[3] !== 4).concat(sites.map(({ name, x, y }) => [name, x, y, 2])),

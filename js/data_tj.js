@@ -93,6 +93,15 @@
     .filter(r => east ? midX(r) >= 141 : midX(r) < 141)
     .map(r => ({ ...clip(r), from }));
   const data = {
+    emptyStartFunds: 800000, emptyStartTitle: '从零建设', initialStartTitle: '接手津滨轻轨',
+    initialNetwork: { year: 2004, note: '以 2004 年试运营八站为参考的简化线网', lines: [{
+      name: '津滨轻轨', color: '#2078b5', type: 'elevated', model: 'tj-jinbin',
+      stations: [
+        ['中山门',117.253,39.105], ['东丽开发区',117.342,39.083], ['钢管公司',117.471,39.054],
+        ['洋货市场',117.660,39.031], ['洞庭路',117.686,39.027], ['市民广场',117.697,39.020],
+        ['会展中心',117.714,39.019], ['东海路',117.730,39.025],
+      ].map(([name, lon, lat]) => [name, ...point(lon, lat)]),
+    }] },
     city: '天津', riverName: '海河', lineColorsNice: CM.DATA.lineColorsNice, plans: CM.DATA.plans,
     places: geo.places, rural: { pop: 140, jobs: 95 }, hsrYear: 2011,
     mapLabels: ['天津站', '小白楼', '天津西站', '滨海国际机场', '塘沽', '于家堡', '天津港', '空港经济区', '武清']

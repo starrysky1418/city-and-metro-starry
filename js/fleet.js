@@ -24,6 +24,7 @@
   };
   const M = function (o) { return Object.assign({ maps: null, max: 8, life: 30, kmh: 80 }, o, { look: Object.assign({}, LOOK[o.look] || LOOK.steel, o.lookX || {}) }); };
   const MODELS = F.MODELS = [
+    M({ id: 'tj-jinbin', maps: ['tj'], name: '津滨轻轨', short: '津滨轻轨', from: 2004, to: 9999, cap: 235, price: 390, ops: 0.95, max: 6, kmh: 80, look: 'steel', lookX: { band: '#2078b5' }, desc: '津滨轻轨接手剧本的初期列车，性能与经费为游戏设定。' }),
     M({ id: 'nb-b80', maps: ['nb'], name: '宁波地铁 B 型', short: '宁波 B 型', from: 2009, to: 9999, cap: 245, price: 420, ops: 0.92, max: 6, kmh: 80, look: 'steel', lookX: { band: '#167bbc' }, desc: '参考宁波轨道交通 1 号线六节 B 型车。游戏允许在开局提前采购。' }),
     M({ id: 'nb-s160', maps: ['nb'], name: '宁波市域快车 S160', short: '宁波 S160', from: 2030, to: 9999, cap: 225, price: 660, ops: 1.21, max: 8, kmh: 160, look: 'future', lookX: { band: '#297c70' }, desc: '游戏虚构的市域快车，适合港区与奉化方向的长距离走廊。' }),
     // 青岛三号线与西安不锈钢 B 型参考官方资料，采购和运营参数用于游戏平衡。
@@ -737,7 +738,7 @@
       h('button', { class: 'btn sm', 'data-tip': '加开快车（跳站）或区间车（只跑一段）。只改运营组织，不收费', onclick: function () { self.showServiceEditor(lid); } }, ic('plus', 14), '新增交路')));
     const peakByBase = new Map();
     for (const s of info) { const x = s.per[0]; if (x && (s.d === 0)) { const b = s.rt.baseId != null ? s.rt.baseId : s.rt.id; peakByBase.set(b, (peakByBase.get(b) || 0) + x.f); } }
-    peakByBase.forEach(function (f) { if (f > CFG.metro.fMax + 0.5) el.appendChild(self.callout('warn', 'warn', '同一条轨道上早高峰合计约 ' + U.fmtNum(f, 1) + ' 列/时，超过上限 ' + CFG.metro.fMax + ' 列/时：减少投入的列车或加长编组。')); });
+    peakByBase.forEach(function (f) { if (f >= CFG.metro.fMax - 0.05) el.appendChild(self.callout('warn', 'warn', '同一条轨道上早高峰合计约 ' + U.fmtNum(f, 1) + ' 列/时，已达到共轨上限。加长编组可以增加运力。')); });
     let avail = 0, short = 0, blocked = 0; for (const s of info) { avail += s.avail; short += s.short; blocked += s.blocked; }
     const all = F.trainsOf(g, lid), grp = groupTrains(g, all);
     el.appendChild(h('div', { class: 'fo-sum' },
@@ -765,6 +766,27 @@
         s.svc && (s.d === 0 || !s.rt.loop) ? h('button', { class: 'btn sm ghost', 'data-tip': '取消这个交路，列车回到全程交路', onclick: function () { const r = F.removeService(g, lid, s.svc); if (r.error) self.toast(r.error, 'bad'); else { sfx('serviceDel'); self.toast('已取消交路，列车回到全程交路', 'info'); done(); } } }, ic('close', 13), '取消') : null));
       card.appendChild(h('div', { class: 'fo-svc-h' }, h('span', { class: 'swatch', style: { background: lineColor(g, lid) } }), h('b', { class: 'grow' }, s.name),
         h('span', { class: 'tag' }, '周转 ' + Math.round(s.cycleMin) + ' 分钟'), h('span', { class: 'tag' }, '最长 ' + s.maxCars + ' 节')));
+      if (s.skipped) {
+        const metro = CM.Metro, C = g.model.net.C;
+        const base = allStops.find(x => x.r === s.rt.baseId && x.d === s.d);
+        const localFreq = base?.per[0]?.f || 0;
+        const total = a => a ? a.reduce((sum, n) => sum + n, 0) : 0;
+        const delay = total(metro.following(C, s.rt, localFreq));
+        const draft = g.draft?.net;
+        let choice = null, saving = 0;
+        const local = C.routes[s.rt.baseId];
+        for (const id of local?.stIds || []) {
+          const station = (draft || C.net).stations[id];
+          if (!station || station.passing?.[lid] || s.rt.stIds.includes(id)) continue;
+          const benefit = delay - total(metro.following(C, s.rt, localFreq, id));
+          if (benefit > saving) { choice = station; saving = benefit; }
+        }
+        if (delay > 0.01) card.appendChild(h('div', { class: 'note' },
+          '早高峰快车跟车约 ' + U.fmtNum(delay / 60, 1) + ' 分钟。', choice && saving >= 3 ?
+            h('button', { class: 'btn sm', onclick: function () {
+              g.edit(n => metro.setPassing(n, choice.id, lid, true)); self.rerenderPage();
+            } }, choice.name + '增设越行线 · 预计节省 ' + U.fmtNum(saving / 60, 1) + ' 分钟') : null));
+      }
       const ids = new Set((pl[s.r] ? pl[s.r].units[s.d] : []).map(function (u) { return u.id; })); ids.forEach(function (id) { onRoute.add(id); });
       const gs = groupTrains(g, all.filter(function (t) { return ids.has(t.id); }));
       const units = h('div', { class: 'fo-units' });

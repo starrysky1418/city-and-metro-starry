@@ -284,9 +284,9 @@
       }
       if (mp.tutorial) acts.appendChild(modeBtn('free', 'play', 'b-teal', '开始教程', '主线 13 步、约 12 分钟：规划、管理与经营（不限资金）', true));
       else {
-        const ch = modeBtn('challenge', 'trophy', 'b-gold', '经营挑战', '初始资金 ' + U.fmtMoney(mp.cfg.economy.startFunds, undefined, mp.cfg.money), true);
+        const ch = modeBtn('challenge', 'trophy', 'b-gold', mp.data.initialStartTitle || '经营挑战', '初始资金 ' + U.fmtMoney(mp.cfg.economy.startFunds, undefined, mp.cfg.money), true);
         ch.dataset.tip = '新游戏 · 拨款随城市经济变化'; acts.appendChild(ch);
-        if (mp.data.emptyStartFunds) acts.appendChild(modeBtn('challenge', 'build', 'b-blue', '从零建设',
+        if (mp.data.emptyStartFunds) acts.appendChild(modeBtn('challenge', 'build', 'b-blue', mp.data.emptyStartTitle || '从零建设',
           '无继承线路 · 初始资金 ' + U.fmtMoney(mp.data.emptyStartFunds, undefined, mp.cfg.money), false, true));
         acts.append.apply(acts, freeParts());
       }

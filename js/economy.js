@@ -730,7 +730,7 @@
   // 各城市的方案在 taskplans.js，按任务编号套用；已经发布的旧任务（含旧存档）保持原样
   Tasks.PART_KIND = { net: '网络形态', reach: '覆盖范围', ops: '运营结果', fin: '成本收益', dev: '发展效果' };
   Tasks.PARTIAL = 0.6;   // 部分完成的奖励比例；满奖励是原任务的 1.5 倍，只完成主体也比原来只差一点
-  const TRAFFIC_PART = { ridership: 1, facShare: 1, share: 1, lineRiders: 1, lineLoad: 1, netLoad: 1, regionShare: 1, regionCommute: 1, xferShare: 1, todNet: 1, regionPull: 1, lineCrowd: 1, lineEff: 1, zoneCong: 1, stationCrowd: 1 };
+  const TRAFFIC_PART = { ridership: 1, facShare: 1, share: 1, lineRiders: 1, lineLoad: 1, netLoad: 1, regionShare: 1, regionCommute: 1, bayCommute: 1, xferShare: 1, todNet: 1, regionPull: 1, lineCrowd: 1, lineEff: 1, zoneCong: 1, stationCrowd: 1 };
   Tasks.trafficCombo = function (t) { return t.type === 'combo' && t.parts.some(function (p) { return TRAFFIC_PART[p.type]; }); };
   // 地名 → 位置：任务自己的锚点、地名表、其他任务的同名锚点
   Tasks.placeOf = function (name, own) {
@@ -792,6 +792,10 @@
       const w = zoneWeights(g, p.regions); let a = 0, b = 0;
       for (let z = 0; z < model.Z; z++) { a += fd.metro[z] * w[z]; b += fd.trips[z] * w[z]; }
       return b > 0 ? a / b : 0;
+    }
+    if (p.type === 'bayCommute') {
+      const d = model.dailyWk, k = p.corridor * 5;
+      return d?.['bay' + k] > 0 ? d['bay' + (k + 1)] / d['bay' + k] : null;
     }
     if (p.type === 'regionCommute') {
       const P = model.resultsFor('wd').per[0], w = zoneWeights(g, p.regions); let a = 0, b = 0;
@@ -962,6 +966,7 @@
         if (v == null || t.target == null) return { ok: false, value: 0, text: '客流计算中' };
         return { ok: v >= t.target, value: t.base0 != null ? U.clamp((v - t.base0) / Math.max(0.001, t.target - t.base0), 0, 1) : v / t.target, text: t.areaName + '居民出行乘地铁 ' + pct(v, 1) + ' / 目标 ' + pct(t.target, 1) + (t.base0 != null ? '（发布时 ' + pct(t.base0, 1) + '）' : '') };
       }
+      case 'bayCommute':
       case 'regionCommute': {   // 住在片区的人平均通勤时间（工作日早高峰，门到门）
         const v = Tasks.partValue(t, g);
         if (v == null || t.target == null) return { ok: false, value: 0, text: '客流计算中' };
@@ -1400,7 +1405,7 @@
       if (s.challengeOnly && g.econ.mode !== 'challenge') continue;
       const c = { type: s.type, scenario: s.id, theme: s.theme, title: s.title, desc: s.desc, tips: s.tips || [], months: s.months || 48, reward: (s.rewardMonths || 3) * gm, coolKey: 'opt:sc:' + s.id };
       if (s.type === 'combo') {
-        c.parts = s.parts;
+        c.parts = JSON.parse(JSON.stringify(s.parts));
         const an0 = (s.anchors || []).map(function (a) { if (!Array.isArray(a)) return a; const p = Tasks.placeOf(a[0]); return p ? { name: a[0], x: p.x, y: p.y, r: a[1] || 3 } : null; });
         if (an0.some(function (a) { return !a; })) continue;
         if (an0.length) c.anchors = an0;

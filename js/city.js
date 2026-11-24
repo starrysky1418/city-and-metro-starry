@@ -942,6 +942,17 @@
     // 年份：名称表 → 跨江桥梁默认 → 所在区域开放年份
     for (const g of groups) {
       if (g.sim) continue;
+      if (D.bay && g.cls >= 3 && (g.flags & 3)) {
+        const [[l,t],[r,b]] = g.flags & 2 ? D.bay.tunnelBounds : D.bay.bridgeBounds;
+        const [x0,y0,x1,y1] = g.bbox;
+        if (x1 >= l && x0 <= r && y1 >= t && y0 <= b &&
+          g.ways.some(p => {
+            for (let i = 0; i + 3 < p.length; i += 2) {
+              if (self.crossesRiver(p[i], p[i + 1], p[i + 2], p[i + 3])) return true;
+            }
+            return false;
+          })) { g.year = D.bay.roadOpen; continue; }
+      }
       const y = yearOfName(g.name, g.flags, g.ways[0]);
       // 只为名称与年份表完全一致的道路/桥梁播报通车（匝道、辅路、出入口不单独播报；已有历史事件的不重复）
       if (y != null) { g.year = y; g.notable = y > CFG.START.y && !(g.flags & 4) && (D.roadYears[g.name] != null || D.bridgeYears[g.name] != null) && !D.events.some(function (e) { return e.title.indexOf(g.name) >= 0; }); continue; }
@@ -1671,7 +1682,7 @@
     return n;
   };
   City.prototype.restore = function (s, year) { const it = this.restoreGen(s, year); let r = it.next(); while (!r.done) r = it.next(); };
-  City.prototype.restoreGen = function* (s, year) {
+  City.prototype.restoreGen = function* (s, year, month) {
     this.lockRuleOld = (s.lockRule || 1) < 2; this.lockVer++; this._lk = null;
     const N = this.N;
     const chk = function (a, n) { if (a.length !== n) throw new Error('城市数据尺寸不符'); return a; };
@@ -1752,7 +1763,7 @@
     for (let c = 0; c < N; c++) if (this.regions[this.region[c]].park && this.landFrac[c] >= 0.5 && this.lu[c] === LU.RURAL) { this.lu[c] = this.plan[c] = LU.PARK; this.isPark[c] = 1; }
     this.eArt.fill(0); this.eName.fill(0); this.roadsBuilt.fill(0);
     yield;
-    yield* this.applyRoadsGen(year);
+    yield* this.applyRoadsGen(D.bay ? year + ((month || 1) - 1) / 12 : year);
     this.updateStreets();
     yield;
     yield* this.buildGraphsGen();

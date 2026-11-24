@@ -231,7 +231,7 @@
   const OD_FIXED = ['Z', 'NZ', 'B', 'odStart', 'odDest', 't0', 't1', 't2', 't3', 't4', 't5', 'hostZ', 'nx', 'ny', 'kmPerCell', 'blocks'];
   const OD_MOVE = { gtS: 1, tmS: 1, kmS: 1 };
   const OD_INPUT = ['N', 'co', 'cr', 'facW', 'facWe', 'odOk', 'skT', 'skK', 'zJ', 'cpk', 'park', 'vot', 'carAccess',
-    'walkW', 'occ', 'theta', 'fareFlat', 'fareKm0', 'fareStep', 'fareInc', 'fareCap', 'fareTab', 'bgShare', 'bgSpeed', 'bgWait', 'bgFare', 'roadKeep', 'accOk', 'gtS', 'tmS', 'kmS', 'perMin', 'capSh', 'capLz', 'habit', 'habAsc', 'habLite'];
+    'walkW', 'occ', 'theta', 'fareFlat', 'fareKm0', 'fareStep', 'fareInc', 'fareCap', 'fareTab', 'bgShare', 'bgSpeed', 'bgWait', 'bgFare', 'roadKeep', 'accOk', 'gtS', 'tmS', 'kmS', 'perMin', 'capSh', 'capLz', 'habit', 'habAsc', 'habLite', 'bayZone', 'ferryAccess'];
   function odWorkerMain() {
     let basis = null, id = 0, work = {};
     onmessage = function (e) {
@@ -497,6 +497,8 @@
         const ho = hostZ[o], hd = hostZ[d];
         let ct = skT[ho * Z + hd], ck = skK[ho * Z + hd];
         if (!(ct > 0) || ct >= INF) { const straight = U.dist(nx[o], ny[o], nx[d], ny[d]) * kmPerCell * 1.3; ct = straight / 16 * 60 + 3; ck = straight; }
+        const bo = K.bayZone?.[ho] || 0, bd = K.bayZone?.[hd] || 0;
+        const bay = bo && bd && bo !== bd && ((bo - 1) >> 1) === ((bd - 1) >> 1) ? ((bo - 1) >> 1) + 1 : 0;
         const carMoney = ck * cpk + park;
         let gtCar = ct + carAccess + carMoney / vot * 60, roadF = 1, tBg = 0;
         // 背景交通（v2.2）：非地铁出行中有 bgShare 比例乘坐电车、普通铁路、渡轮或步行，不占用道路；广义成本按比例混合
@@ -504,6 +506,14 @@
           const dk = U.dist(nx[o], ny[o], nx[d], ny[d]) * kmPerCell * 1.25;
           tBg = dk / bgSpeed * 60 + bgWait;
           gtCar = (1 - bgShare) * gtCar + bgShare * (tBg + bgFare / vot * 60); roadF = 1 - bgShare;
+        }
+        let ferryShare = 0, ferryTime = 0;
+        if (bay === 1) {
+          ferryTime = 35 + K.ferryAccess[ho] + K.ferryAccess[hd];
+          const ferryCost = ferryTime + 8 / vot * 60;
+          ferryShare = 1 / (1 + Math.exp(theta * (ferryCost - gtCar)));
+          gtCar -= Math.log1p(Math.exp(Math.min(60, theta * (gtCar - ferryCost)))) / theta;
+          roadF *= 1 - ferryShare;
         }
         // 地铁出行习惯（v2.3）：两端车站周边的成熟度（0–1）；偏好只加在地铁与开车的比较上，并有一部分非地铁出行不再上路
         const hb = habit ? (habit[ho] + habit[hd]) * 0.5 : 0;
@@ -561,7 +571,16 @@
         const onRoad = car + metro * roadKeep;
         if (onRoad > 0) { carDem[ho * Z + hd] += onRoad / occ * roadF; hasCar[ho] = 1; }
         S[0] += F; S[1] += metro; S[2] += car;
-        const tCar = bgShare > 0 ? (1 - bgShare) * (ct + carAccess * 0.5) + bgShare * tBg : ct + carAccess * 0.5;
+        const tRoad = bgShare > 0 ? (1 - bgShare) * (ct + carAccess * 0.5) + bgShare * tBg : ct + carAccess * 0.5;
+        const tCar = tRoad * (1 - ferryShare) + ferryTime * ferryShare;
+        if (bay && comp[HW] > 0) {
+          const k = 14 + (bay - 1) * 5, demand = comp[HW];
+          S[k] += demand;
+          S[k + 1] += demand * ((1 - q) * tCar + q * mTime);
+          S[k + 2] += demand * q;
+          S[k + 3] += demand * (1 - q) * ferryShare;
+          S[k + 4] += demand * (1 - q) * (1 - ferryShare);
+        }
         S[3] += car * tCar + metro * mTime;
         S[4] += car * tCar; S[5] += metro * mTime;
         S[6] += metro * fare; S[7] += metro * mKm; S[8] += car * ck; S[9] += onRoad / occ * ck * roadF;
@@ -1515,6 +1534,7 @@
     if (!work || work.cost.length !== nE || work.dist.length !== nn) { store.valid=false; work = store.work = { cost: new Float32Array(nE), tAct: new Float32Array(nE), dist: new Float64Array(nn), dtm: new Float32Array(nn), dkm: new Float32Array(nn) }; }
     const cost = work.cost, tAct = work.tAct;
     const xpen = prm.xpen ?? prm.tpen;
+    const following = net.C.routes.map(rt => CM.Metro.following(net.C, rt, P.freq[rt.baseId] || 0));
     let same=store.valid&&store.skimKey===key&&store.transferPen===xpen;store.valid=false;
     for (let e = 0; e < nE; e++) {
       const before=cost[e],beforeT=tAct[e];cost[e]=0;tAct[e]=0;
@@ -1532,7 +1552,8 @@
       } else if (ty === 1) {
         if (net.eT0[e] > 0) { cost[e] = prm.walkW * net.eT0[e]; tAct[e] = net.eT0[e]; }
       } else if (ty === 2) {
-        cost[e] = net.eT0[e] * P.crowd[e]; tAct[e] = net.eT0[e];
+        const extra = following[net.eRoute[e]]?.[net.eLeg[e]] || 0;
+        tAct[e] = net.eT0[e] + extra / 60; cost[e] = tAct[e] * P.crowd[e];
       } else if (ty === 3) {
         cost[e] = prm.walkW * net.eT0[e] + prm.opn + prm.tpen - xpen; tAct[e] = net.eT0[e];
       } else if (ty === 4) {
@@ -1628,10 +1649,24 @@
     if (choices) choices.fill(-2);
     const t = od.t;
     // 方式选择的输入与统计数组（每次迭代一次性组装，见 odOrigin）
-    const S = new Float64Array(14), fp = Model.fareParams(this.fare), bg = CM.Eras ? CM.Eras.bg(this.year) : null;
+    const bay = CM.DATA.bay;
+    let bayZone = null, ferryAccess = null;
+    if (bay) {
+      bayZone = new Uint8Array(Z); ferryAccess = new Float32Array(Z);
+      for (let z = 0; z < Z; z++) {
+        const x = this.zCx[z], y = this.zCy[z];
+        const at = bay.zones.findIndex(([[l,t],[r,b]]) => x >= l && x <= r && y >= t && y <= b);
+        bayZone[z] = at + 1;
+        if (at === 0 || at === 1) {
+          const dock = bay.docks[at];
+          ferryAccess[z] = U.dist(x,y,dock[0],dock[1]) * kmPerCell * 12;
+        }
+      }
+    }
+    const S = new Float64Array(bay ? 24 : 14), fp = Model.fareParams(this.fare), bg = CM.Eras ? CM.Eras.bg(this.year) : null;
     const K = { Z: Z, NZ: NZ, N: N, B: this.B, odStart: od.start, odDest: od.dest, t0: t[0], t1: t[1], t2: t[2], t3: t[3], t4: t[4], t5: t[5],
       co: co, cr: cr, cO: new Float64Array(NPK), cR: new Float64Array(NPK), facW: facW, facWe: facWe, odOk: od.F === F && od.key === fn.key,
-      hostZ: hostZ, nx: nx, ny: ny, skT: skT, skK: skK, kmPerCell: kmPerCell,
+      hostZ: hostZ, nx: nx, ny: ny, skT: skT, skK: skK, kmPerCell: kmPerCell, bayZone, ferryAccess,
       cpk: prm.cpk, park: prm.park, vot: prm.vot, carAccess: prm.carAccess, walkW: prm.walkW, occ: prm.occ, theta: prm.theta, fareFlat: this.fareFor(0),
       fareKm0: fp.km0, fareStep: fp.step, fareInc: fp.inc, fareCap: fp.cap, fareTab: Model.fareTab(this.fare, this.year, prm.vot),
       bgShare: bg ? bg.share : 0, bgSpeed: bg ? bg.speed : 1, bgWait: bg ? bg.wait : 0, bgFare: bg ? bg.fare : 0, roadKeep: bg ? bg.keep : 0,
@@ -1656,6 +1691,7 @@
     if (!odDone) for (let i = 0; i < Z; i++) { odOrigin(K, i); if ((i & 7) === 7) yield; }
     st.trips = S[0]; st.metro = S[1]; st.car = S[2]; st.timeSum = S[3]; st.carTime = S[4]; st.metroTime = S[5]; st.fare = S[6]; st.metroPkm = S[7]; st.carPkm = S[8]; st.vkt = S[9];
     st.commTrips = S[10]; st.commTime = S[11]; st.ind = S[12]; st.indM = S[13];
+    if (bay) for (let i = 0; i < 10; i++) st['bay' + i] = S[14 + i];
     for (let k = 0; k < NPK; k++) { st[TKEY[k]] = pT[k]; st[MKEY[k]] = pM[k]; }
     // ---- 地铁客流加载与自动运营 ----
     if (hasMetro) {
@@ -1732,11 +1768,12 @@
           let mx = 0;
           for (let q = 0; q < re.length; q++) if ((nd === 1 || (q & 1) === d) && P.load[re[q]] > mx) mx = P.load[re[q]];
           const need = U.clamp(Math.max(mx / (cap * mc.targetLF), floor), 1, mc.fMax), k = 2 * r + d;
-          P.needDir[k] = need;
+          P.needDir[k] = Model.sharedFrequency(P, net, r, d, need);
           let f = P.freqDir[k] * 0.55 + need * 0.45;
           if (fp) { const per = 3600 / Math.max(60, rt.cycleSec); f = fp.manual ? Math.min(mc.fMax, Math.min(fp.manual[d][p], fp.avail[d]) * per) : Math.min(f, mc.fMax, fp.avail[d] * per); }
           if (rt.railFreq != null) f = Model.railFrequency(rt, p);
-          P.freqDir[k] = f; if (nd === 1) { P.freqDir[k + 1] = f; P.needDir[k + 1] = need; }
+          f = Model.sharedFrequency(P, net, r, d, f);
+          P.freqDir[k] = f; if (nd === 1) { P.freqDir[k + 1] = f; P.needDir[k + 1] = P.needDir[k]; }
         }
         P.freq[r] = nd === 2 ? (P.freqDir[2 * r] + P.freqDir[2 * r + 1]) / 2 : P.freqDir[2 * r];
 
@@ -2166,6 +2203,26 @@
   // 路线每列车的平均定员（有车队时按配属列车，否则按编组上限 × 默认定员）
   Model.prototype.capOf = function (r, net) { net = net || this.net; const pl = this.fleetOf(net), fp = pl && pl[r]; return fp ? fp.cap : (net && net.C.routes[r] ? net.C.routes[r].cap : 1); };
   // 区间 q（rideEdge 下标：偶数正向、奇数反向）的发车频率
+  Model.sharedFrequency = function (P, net, r, d, proposed) {
+    const route = net.C.routes[r], base = net.C.routes[route.baseId];
+    if (!base) return proposed;
+    const a = route.baseStops;
+    const start = route.loop ? 0 : a[0], end = route.loop ? base.legSec.length : a[a.length - 1];
+    if (!(end > start)) return proposed;
+    const changes = new Float32Array(end - start + 1);
+    for (let i = base.id + 1; i < r; i++) {
+      const prior = net.C.routes[i], b = prior.baseStops;
+      if (prior.baseId !== base.id || !b) continue;
+      const from = prior.loop ? start : Math.max(start, b[0]);
+      const to = prior.loop ? end : Math.min(end, b[b.length - 1]);
+      if (to <= from) continue;
+      changes[from - start] += P.freqDir[i * 2 + d];
+      changes[to - start] -= P.freqDir[i * 2 + d];
+    }
+    let used = P.freqDir[base.id * 2 + d], peak = used;
+    for (let k = 0; k + 1 < changes.length; k++) { used += changes[k]; peak = Math.max(peak, used); }
+    return Math.min(proposed, Math.max(0, CFG.metro.fMax - peak));
+  };
   Model.dirFreq = function (P, net, r, q) { const rt = net.C.routes[r]; return P.freqDir && P.freqDir.length === 2 * net.R ? P.freqDir[2 * r + (rt.loop ? (q & 1) : 0)] : P.freq[r]; };
   // 车队变化（购买、调拨、出售、手动设定）后立即按新的列车数重算各时段频率与运营费用，不等下个月的交通求解；
   // 所需频率（needDir）沿用上次求解结果，客流分配在下次求解时随之调整
@@ -2179,7 +2236,8 @@
         const rt = net.C.routes[r], fp = plan[r]; if (!fp) continue;
         const per1 = 3600 / Math.max(60, rt.cycleSec), nd = rt.loop ? 2 : 1;
         for (let d = 0; d < nd; d++) {
-          const k = 2 * r + d, f = fp.manual ? Math.min(mc.fMax, Math.min(fp.manual[d][p], fp.avail[d]) * per1) : Math.min(P.needDir[k] || P.freqDir[k] || Model.serviceFloor(rt, p), mc.fMax, fp.avail[d] * per1);
+          const k = 2 * r + d, proposed = fp.manual ? Math.min(mc.fMax, Math.min(fp.manual[d][p], fp.avail[d]) * per1) : Math.min(P.needDir[k] || P.freqDir[k] || Model.serviceFloor(rt, p), mc.fMax, fp.avail[d] * per1);
+          const f = Model.sharedFrequency(P, net, r, d, proposed);
           P.freqDir[k] = f; if (nd === 1) P.freqDir[k + 1] = f;
         }
         P.freq[r] = nd === 2 ? (P.freqDir[2 * r] + P.freqDir[2 * r + 1]) / 2 : P.freqDir[2 * r];
