@@ -110,6 +110,7 @@
 
   // 融资制度（政府合同的名称与开放年份，corp.js 读取）
   const FLAVOR = {
+    us: { name: '公共机构与联邦资金', from: 1968, note: '参照纽约大都会运输署以发债、专项税和联邦拨款支持资本计划的做法' },
     cn: { name: 'PPP 特许经营', from: 2002, note: '参照中国内地 2000 年代起的地铁 PPP 与特许经营' },
     sg: { name: '轨道运营授权', from: 1987, note: '采用社区版新加坡剧本的运营授权规则' },
     hk: { name: '铁路＋物业', from: 1980, note: '参照香港以沿线物业开发收益支持铁路建设的做法' },
@@ -197,6 +198,10 @@
       build: function (t, c) {
         const T = TIER.disaster[lv(t)], e = eventAt(c.D, t.on);
         e.fx.demand = T.demand; e.fx.sat = T.sat;
+        if (t.damage) {
+          const repair = [{ share: 0.04, cap: 2 }, { share: 0.08, cap: 4 }, { share: 0.15, cap: 6 }][lv(t)];
+          e.fx.damage = { ...repair, area: t.damage.area, types: t.damage.types || ['elevated', 'surface'] };
+        }
         if (T.cost) e.fx.finance = { cost: T.cost, years: 1, fade: 1 };
         t._from = ymYear(e.y, e.m); t._to = t._from + (T.demand.months || 1) / 12 + (T.demand.fade || 0);
       } },
@@ -373,5 +378,68 @@
     }
     return out;
   };
-  CM.Traits = { MODULES: MODULES, LIB: LIB, TIER: TIER, FLAVOR: FLAVOR, compile: compile, validate: validate, cards: cards, view: view, stops: stops };
+  const Damage = {};
+  const inArea = function (A, x, y) {
+    if (!Array.isArray(A)) return U.dist(x, y, A.x, A.y) <= A.r;
+    let c = false; for (let i = 0, j = A.length - 1; i < A.length; j = i++) { const a = A[i], b = A[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; }
+    return c;
+  };
+  // 按每段实际进入范围的长度计量，航点插值密度不影响维修费。
+  function damagedLength(area, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], length = Math.hypot(dx, dy);
+    if (!length) return 0;
+    if (!Array.isArray(area)) {
+      const x = area.x - a[0], y = area.y - a[1];
+      const offset = (x * dy - y * dx) / length;
+      const half = area.r * area.r - offset * offset;
+      if (half <= 0) return 0;
+      const mid = (x * dx + y * dy) / length, reach = Math.sqrt(half);
+      return Math.max(0, Math.min(length, mid + reach) - Math.max(0, mid - reach));
+    }
+    const cuts = [0, 1];
+    for (let i = 0, j = area.length - 1; i < area.length; j = i++) {
+      const p = area[j], q = area[i], ex = q[0] - p[0], ey = q[1] - p[1];
+      const cross = dx * ey - dy * ex;
+      if (!cross) continue;
+      const px = p[0] - a[0], py = p[1] - a[1];
+      const t = (px * ey - py * ex) / cross, u = (px * dy - py * dx) / cross;
+      if (t > 0 && t < 1 && u >= 0 && u <= 1) cuts.push(t);
+    }
+    cuts.sort((a, b) => a - b);
+    let fraction = 0;
+    for (let i = 1; i < cuts.length; i++) {
+      const mid = (cuts[i - 1] + cuts[i]) / 2;
+      if (inArea(area, a[0] + dx * mid, a[1] + dy * mid)) fraction += cuts[i] - cuts[i - 1];
+    }
+    return length * fraction;
+  }
+  Damage.apply = function (g, e) {
+    const d = e.fx && e.fx.damage, M = CM.Metro; if (!d || !g.net || !M) return null;
+    const net = g.net, yr = g.year(), types = d.types || ['elevated', 'surface'], seen = new Set();
+    let km = 0, nst = 0, fee = 0;
+    for (const id in net.segments) {
+      const s = net.segments[id]; if (types.indexOf(s.type) < 0) continue;
+      const k = M.trackKey(s); if (seen.has(k)) continue; seen.add(k);
+      const gm = M.segGeom(net, s, g.city), pts = gm.pts || []; if (!gm.lenM) continue;
+      let length = 0;
+      for (let i = 1; i < pts.length; i++) length += damagedLength(d.area, pts[i - 1], pts[i]);
+      if (!length) continue;
+      const affectedM = Math.min(gm.lenM, length * CM.CFG.CELL_M);
+      km += affectedM / 1000;
+      fee += M.trackCost(gm, s.type, yr) * affectedM / gm.lenM;
+    }
+    for (const id in net.stations) {
+      const s = net.stations[id]; if (s.v || !inArea(d.area, s.x, s.y)) continue;
+      const exposed = (s.lv ? M.stationLevels(net, id) : [s.type]).filter(t => types.includes(t));
+      if (!exposed.length) continue;
+      nst++;
+      for (const t of exposed) fee += M.stationCost(t, s.size, yr) * (t === s.type ? 1 : CM.CFG.metro.levelFactor || 0.6);
+    }
+    if (!(fee > 0)) return { fee: 0, km: 0, stations: 0 };
+    fee = Math.min(fee * d.share, d.cap * g.econ.grantQuota(g.clock.y, g.clock.m));
+    g.econ.spendBuild({ construction: fee }, e.title + '：灾后维修（' + nst + ' 座车站、' + km.toFixed(1) + ' km 轨道）', { y: g.clock.y, m: g.clock.m, d: g.clock.d });
+    return { fee: fee, km: km, stations: nst };
+  };
+  Damage.note = function (r) { return r && r.fee > 0 ? ' 地铁受损：' + r.stations + ' 座高架或地面车站、' + r.km.toFixed(1) + ' km 轨道需要维修，维修费 ' + U.fmtMoney(r.fee) + '，线路照常运营。' : ''; };
+  CM.Traits = { MODULES: MODULES, LIB: LIB, TIER: TIER, FLAVOR: FLAVOR, compile: compile, validate: validate, cards: cards, view: view, stops: stops, Damage: Damage };
 })(window.CM);

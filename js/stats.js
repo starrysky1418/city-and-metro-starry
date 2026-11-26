@@ -327,20 +327,17 @@
     let rows = E.ledger.map(function (r) { return { lab: r.y + '年' + r.m + '月', x: (r.y % 100 < 10 ? '0' : '') + r.y % 100 + '.' + r.m, r: r }; });
     if (E.ledger.length > 36) {
       const by = new Map();
-      for (const r of E.ledger) { let a = by.get(r.y); if (!a) { a = { y: r.y, grant: 0, fare: 0, reward: 0, construction: 0, demolition: 0, upgrade: 0, relocation: 0, ops: 0, bond: 0, interest: 0, principal: 0, penalty: 0, ppp: 0, pppOut: 0, todCost: 0, fleetSale: 0 }; by.set(r.y, a); } for (const k in a) if (k !== 'y') a[k] += r[k] || 0; }
+      for (const r of E.ledger) { let a = by.get(r.y); if (!a) { a = { y: r.y, grant: 0, fare: 0, reward: 0, construction: 0, demolition: 0, upgrade: 0, relocation: 0, ops: 0, bond: 0, interest: 0, principal: 0, penalty: 0, ppp: 0, pppOut: 0, todCost: 0, fleetSale: 0, commerce: 0, propertyIncome: 0, propertyInvest: 0, propertyCost: 0 }; by.set(r.y, a); } for (const k in a) if (k !== 'y') a[k] += r[k] || 0; }
       rows = Array.from(by.values()).map(function (a) { return { lab: a.y + '年', x: String(a.y), r: a }; });
-      // 车站商业按年合计（上面的科目表没有它）
-      const cy = new Map(); for (const r of E.ledger) cy.set(r.y, (cy.get(r.y) || 0) + (r.commerce || 0));
-      for (const o of rows) o.r.commerce = cy.get(o.r.y) || 0;
     }
-    const inc = function (r) { return (r.grant || 0) + (r.fare || 0) + (r.reward || 0) + (r.commerce || 0) + (r.ppp || 0) + (r.fleetSale || 0); };
-    const exp = function (r) { return (r.construction || 0) + (r.demolition || 0) + (r.upgrade || 0) + (r.relocation || 0) + (r.ops || 0) + (r.todCost || 0) + (r.pppOut || 0); };
+    const inc = function (r) { return (r.grant || 0) + (r.fare || 0) + (r.reward || 0) + (r.commerce || 0) + (r.ppp || 0) + (r.fleetSale || 0) + (r.propertyIncome || 0); };
+    const exp = function (r) { return (r.construction || 0) + (r.demolition || 0) + (r.upgrade || 0) + (r.relocation || 0) + (r.ops || 0) + (r.todCost || 0) + (r.pppOut || 0) + (r.propertyInvest || 0) + (r.propertyCost || 0); };
     const svc = function (r) { return (r.interest || 0) + (r.principal || 0) + (r.penalty || 0); };
     const anyDebt = E.ledger.some(function (r) { return r.bond || svc(r); }) || E.bonds.length;
     const cg = h('div', { class: 'chart-grid' });
     cg.append(
       ts(H, '资金与债务', '一般资金为负时需尽快扭亏（长期负余额会导致挑战失败）；建设专项资金只能用于建设', [{ name: '一般资金', color: P[3], vals: pick(H, 'funds').map(cv) }].concat(anyDebt ? [{ name: '建设专项资金', color: P[2], vals: pick(H, 'capex').map(cv) }, { name: '债务余额', color: P[6], vals: pick(H, 'debt').map(cv) }] : []), { fmt: fm, axisFmt: axisYi, area: !anyDebt, icon: 'coin', refs: [{ v: 0, label: '' }] }),
-      lineChart({ title: '收入与支出', sub: (E.ledger.length > 36 ? '按年' : '按月') + '合计：财政收入 = 拨款 + 票款 + 车站商业 + 政府合同 + 奖励（借款不计入）；支出 = 建设 + 运营（含车站商业成本）+ 合同支出' + (anyDebt ? '；偿债 = 利息 + 本金 + 逾期费用' : ''), icon: 'wallet', labels: rows, xs: rows.map(function (o) { return o.x; }), tips: rows.map(function (o) { return o.lab; }), series: [{ name: '财政收入', color: P[2], vals: rows.map(function (o) { return cv(inc(o.r)); }) }, { name: '建设与运营支出', color: P[1], vals: rows.map(function (o) { return cv(exp(o.r)); }) }].concat(anyDebt ? [{ name: '偿债', color: P[6], vals: rows.map(function (o) { return cv(svc(o.r)); }) }] : []), fmt: fm, axisFmt: axisYi, empty: '尚无完整月份的记录。' }));
+      lineChart({ title: '收入与支出', sub: (E.ledger.length > 36 ? '按年' : '按月') + '合计：财政收入含拨款、票款、商业、物业回款、政府合同和奖励（借款不计入）；支出含建设、运营、物业投资与维护、合同支出' + (anyDebt ? '；偿债 = 利息 + 本金 + 逾期费用' : ''), icon: 'wallet', labels: rows, xs: rows.map(function (o) { return o.x; }), tips: rows.map(function (o) { return o.lab; }), series: [{ name: '财政收入', color: P[2], vals: rows.map(function (o) { return cv(inc(o.r)); }) }, { name: '建设与运营支出', color: P[1], vals: rows.map(function (o) { return cv(exp(o.r)); }) }].concat(anyDebt ? [{ name: '偿债', color: P[6], vals: rows.map(function (o) { return cv(svc(o.r)); }) }] : []), fmt: fm, axisFmt: axisYi, empty: '尚无完整月份的记录。' }));
     el.appendChild(cg);
     // 车站商业（TOD，v2.3）：开发情况、营运收入构成、票款与商业收入的走势、收入最高的车站
     if (CM.TOD) {

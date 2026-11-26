@@ -61,6 +61,7 @@
     addHubPrices(cfg);
     m.cfg = cfg;
     CM.Traits?.compile(m);
+    if (m.id === 'mi') m.data.events.sort((a,b) => a.y - b.y || a.m - b.m);
     MAPS[m.id] = m;
   }
   for (const id of ['gz','sh']) CM.expandOriginalMap(MAPS[id]);

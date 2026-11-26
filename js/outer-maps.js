@@ -128,6 +128,14 @@
       d.placeYears = Object.assign({}, d.placeYears, { '松江大学城': 2001 });
       hub('sh-songjiang-hub','上海松江站','rail',121.226,30.984,2010,[[2010,1.8],[2025,6]]);
       replaceAirport('浦东机场',121.804,31.152,[2005,1999,2008,2015,2017]);
+      // 长江隧桥 2009 年 10 月 31 日开放，剧本从下一年起开放图内北岸建设。
+      // https://www.shanghai.gov.cn/nw9822/20200906/0001-9822_386627.html
+      d.regions.unshift(
+        { id:'sh-chongming-east', name:'崇明东部 · 陈家镇', open:2010, earlyYears:0, roadStart:1990,
+          geo:{adminNames:['陈家镇']}, plan:'mix', island:true, demography:townGrowth },
+        { id:'sh-changxing', name:'长兴岛', open:2010, earlyYears:0, roadStart:1990,
+          geo:{adminNames:['长兴镇']}, plan:'mix', island:true, demography:townGrowth },
+      );
       const event = d.events.find(e => e.title==='浦东国际机场启用');
       if (event) event.desc='浦东机场开始运营，国际航线逐步由虹桥转入。';
       d.events.push(
@@ -144,7 +152,7 @@
         ref:{label:'广州市实际 GDP 增速',src:'广州统计年鉴，地区生产总值指数（上年＝100）',
           data:[11.3,16.3,23.3,26.4,18.8,16.5,12.5,13.5,13.2,13.3,13.4,12.8,13.3,15.2,15.1,13,15,15.5,12.6,11.7,13,11.4,10.4,11.5,8.5,8.3,7.6,6.7,6,6.92,2.71,8.14,0.97,4.55].map((rate,i)=>[1990+i,rate/100])} };
       addZones([
-        ['gz-foshan','佛山禅桂中心城区',2010,'mix',11.5e6,[113.082,22.977,113.196,23.112], { initial: 0.53, early: 0.72, mature: 0.95, from: 1996 }],
+        ['gz-foshan','广佛首期 · 禅桂中心城区',2008,'mix',11.5e6,[113.082,22.977,113.196,23.112], { initial: 0.53, early: 0.72, mature: 0.95, from: 1996 }],
         ['gz-huadu','花都新华与广州北站',2017,'newtown',14.6e6,[113.143,23.318,113.284,23.446]],
         ['gz-airport-new','广州白云国际机场与人和',2004,'port',9.2e6,[113.270,23.235,113.349,23.436]],
         ['gz-conghua','从化街口与江埔',2020,'newtown',16.8e6,[113.505,23.492,113.664,23.569]],
@@ -154,10 +162,17 @@
       ]);
       // Preserve the original Nanhai region ID for saves, but assign both districts before the generic expansion strips.
       const core = d.regions.find(r => r.id === 'gz-foshan');
+      core.roadStart = 1990; // 底图道路先服务居民，地铁建设仍按片区规则开放。
       core.geo = {adminNames:['禅城区','桂城街道']};
       delete core.poly;
+      core.fallbackPoly = [[
+        [113.158,23.039],[113.177,23.029],[113.208,23.035],[113.248,23.050],
+        [113.251,23.072],[113.216,23.062],[113.184,23.058],[113.158,23.057],
+      ].map(([lon,lat]) => xy(lon,lat))];
+      // 旧进度若已到施工窗口，读档即可开放首期。
+      core.openOnRestore = true;
       const nanhai = d.regions.find(r => r.id === 'foshan');
-      Object.assign(nanhai,{name:'佛山南海',open:2014,pop:13.6e6,geo:{adminNames:['南海区','大沥镇','里水镇','狮山镇']},
+      Object.assign(nanhai,{name:'佛山南海',open:2014,roadStart:1990,pop:13.6e6,geo:{adminNames:['南海区','大沥镇','里水镇','狮山镇']},
         demography:{initial:0.48,early:0.70,mature:0.98,from:1998}});
       delete nanhai.streets;
       delete nanhai.district;
@@ -245,7 +260,8 @@
       [[0,dy+oldH],[geo.w,dy+oldH],[geo.w,geo.h],[0,geo.h]],
     ];
     const edgeYears = m.id === 'gz' ? [2017,2010,2013,2021] : [1997,1997,1997,1997];
-    for (const [i,poly] of edge.entries()) d.regions.push({id:m.id+'-outer-'+i,name:'外围走廊',open:edgeYears[i],plan:'res',pop:m.id === 'gz' ? null : 15e6,poly,demography:corridorGrowth});
+    const gzEdgeNames = ['北部外围余量', '佛山西部外围', '东部外围余量', '南部外围余量'];
+    for (const [i,poly] of edge.entries()) d.regions.push({id:m.id+'-outer-'+i,name:m.id === 'gz' ? gzEdgeNames[i] : '外围走廊',open:edgeYears[i],plan:'res',pop:m.id === 'gz' ? null : 15e6,...(m.id === 'gz' ? {fallbackPoly:poly} : {poly}),demography:corridorGrowth});
     if (m.id === 'gz') for (const region of d.regions) {
       if (region.id.startsWith('gz-') || region.id === 'foshan') region.earlyYears = 2;
     }

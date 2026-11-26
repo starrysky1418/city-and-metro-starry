@@ -165,6 +165,9 @@
           return bx;
         }, true));
       }
+      if (res.existingLines?.length) wrap.appendChild(this.sec('pr-diversion', '既有线客流变化（日上车人次）', '', function () {
+        return diversionTable(res.existingLines);
+      }, true, 'route'));
       if (res.lines.length) {
         wrap.appendChild(this.sec('pr-lines', '相关线路客流（日上车人次）', '', function () {
           const t = h('table', { class: 'tbl' }, h('tr', null, h('th', null, '线路'), h('th', null, '当前'), h('th', null, '草案')));
@@ -172,6 +175,10 @@
           return t;
         }, true));
       }
+      const noise = noiseChangeNote(res.noise);
+      if (noise) wrap.appendChild(noise);
+      const crossing = surfaceCrossingNote(res.surfaceCrossings);
+      if (crossing) wrap.appendChild(crossing);
       wrap.appendChild(this.sec('pr-roads', '道路影响（工作日早高峰拥堵指数）', res.roads.length ? res.roads.length + ' 条变化' : '变化不明显', function () {
         const bx = h('div');
         if (!res.roads.length) bx.appendChild(h('div', { class: 'note' }, '早高峰主要道路拥堵指数变化不明显。新增地铁不保证道路拥堵一定改善。'));
@@ -201,13 +208,41 @@
   };
   // ======================== 页面：建设效果报告（v2.3） ========================
   // 关键数字（分担率、通勤、客运量、运营盈亏）→ 为什么 → 可以尝试 → 沿线车站客流 → 道路变化 → 对照口径
+  function noiseChangeNote(x) {
+    if (!x || Math.round(x.before) === Math.round(x.after)) return null;
+    return h('div', { class: 'note' }, '沿线噪声影响人口约 ' + U.fmtPeople(x.before) + ' → ' + U.fmtPeople(x.after) + ' 人');
+  }
+  function surfaceCrossingNote(x) {
+    if (!x || (!x.added && !x.removed)) return null;
+    const labels = [];
+    if (x.added) labels.push(x.added + ' 段道路新增车行绕行或通行受限');
+    if (x.removed) labels.push(x.removed + ' 段道路的车行影响减轻');
+    return h('div', { class: 'callout ' + (x.added ? 'warn' : 'info') }, '地面轨道 · ' + labels.join('，'));
+  }
+  function diversionTable(lines) {
+    const table = h('table', { class: 'tbl' }, h('tr', null, ...['线路', '建设前', '建设后', '变化'].map(t => h('th', null, t))));
+    for (const l of lines) {
+      const delta = l.after - l.before;
+      table.appendChild(h('tr', null, h('td', null, l.name), h('td', null, U.fmtPeople(l.before)),
+        h('td', null, U.fmtPeople(l.after)), h('td', null, U.fmtSigned(delta, 0, ''))));
+    }
+    return table;
+  }
   UI.prototype.page_impact=function(){
     const g=this.g(),r=g.impactReport,self=this,el=h('div');
     if(!r){el.appendChild(h('div',{class:'tk-empty'},ic('report',26),h('b',null,'还没有建设效果报告'),h('span',null,'确认建设后，系统会以相同的人口、岗位、道路和票价，对比保留与撤回这次建设的网络，生成报告。')));return{title:'建设效果报告',el};}
     if(r.status!=='done'){el.appendChild(h('div',{class:'callout info'},h('span',{class:'spinner',style:{width:'14px',height:'14px',borderWidth:'2px'}}),'正在评估本次建设的交通效果（不影响游戏进行），完成后自动显示。'));return{title:'建设效果报告',el};}
     el.appendChild(h('div',{class:'tiny muted',style:{margin:'0 0 6px'}},r.at[0]+'年'+r.at[1]+'月建成'+(r.summary?' · '+r.summary:'')+(r.cost>0?' · 费用 '+U.fmtMoney(r.cost):'')));
+    if (!r.seen) { r.seen = true; this.markUnsaved(); this.scheduleAutosave(); }
+    if (r.existingLines?.length) el.appendChild(this.sec('imp-diversion', '既有线客流变化（日上车人次）', '', function () {
+      return diversionTable(r.existingLines);
+    }, true, 'route'));
     if(r.lines&&r.lines.length)el.appendChild(h('div',{class:'row',style:{flexWrap:'wrap',gap:'4px',marginBottom:'6px'}},r.lines.map(l=>h('span',{class:'tag clickable',style:{background:AX.line(l)+'22',color:AX.line(l)},onclick:()=>{if(g.net.lines[l.id])self.openPage('line',l.id);}},'● '+l.name+' · 日上车 '+U.fmtPeople(l.after)+' 人次'))));
     el.appendChild(CM.Impact.view(this,r,{open:true}));
+    const noise = noiseChangeNote(r.noise);
+    if (noise) el.appendChild(noise);
+    const crossing = surfaceCrossingNote(r.surfaceCrossings);
+    if (crossing) el.appendChild(crossing);
     const roads=[...(r.roads||[]),...(r.roadsWorse||[])];
     el.appendChild(this.sec('imp-roads','道路变化（工作日早高峰拥堵指数）',roads.length?roads.length+' 条':'变化不明显',function(){
       const b=h('div');
@@ -876,6 +911,27 @@
         el.appendChild(this.sec('ln-seg', '选中区段：' + net.stations[seg.a].name + '—' + net.stations[seg.b].name, '', function () {
           const b = h('div');
           b.appendChild(self.kv([['长度', U.fmtKm(geo.lenM)], ['建设方式', CFG.metro.typeName[seg.type] + (geo.transitionTo ? ' → ' + CFG.metro.typeName[geo.transitionTo] : '')], !geo.parts && geo.waterM > 1 ? ['跨江', (seg.type === 'underground' ? '越江隧道 ' : '跨江桥梁 ') + U.fmtKm(geo.waterM)] : null, geo.tunnel ? ['山体隧道', U.fmtKm(geo.tunnel[1] - geo.tunnel[0])] : null, ['最小曲线半径', isFinite(geo.minRadiusM) ? Math.round(geo.minRadiusM) + ' m' : '直线']]));
+          const barrierCost = CM.Noise.cost(seg, geo, g.clock.y);
+          if (barrierCost > 0) {
+            const shared = [seg, ...M.coTrackSegs(net, seg).map(x => net.segments[x.id])];
+            const planned = shared.some(s => s.noiseBarrier);
+            const built = shared.some(s => g.net.segments[s.id]?.noiseBarrier);
+            const live = CM.Noise.current(g.model).segments.find(s => s.key === M.trackKey(seg));
+            const preview = CM.Noise.previewSegment(g.city, seg, geo, live ? live.factor : 0.8, planned);
+            b.appendChild(h('div', { class: 'field' }, h('label', null, '列车噪声与隔音屏'),
+              h('div', { class: 'tiny muted' }, (live ? '按现有班次估算，' : '按参考班次估算，') + '约 ' +
+                U.fmtPeople(preview.people) + ' 人受明显影响' +
+                (planned ? '。' : '，加装后约 ' + U.fmtPeople(preview.protectedPeople) + ' 人。') +
+                (live?.nightShare >= 0.35 ? ' 夜间班次对暴露影响较大。' : '')),
+              h('button', { class: 'btn sm', disabled: built, onclick: function () {
+                g.edit(n => {
+                  const s = n.segments[segId];
+                  for (const t of [s, ...M.coTrackSegs(n, s).map(x => n.segments[x.id])]) {
+                    if (planned) delete t.noiseBarrier; else t.noiseBarrier = true;
+                  }
+                });
+              } }, built ? '隔音屏已建成' : planned ? '撤销隔音屏草案' : '加装隔音屏 · ' + U.fmtMoney(barrierCost))));
+          }
           const tc = h('div', { class: 'seg-ctl', style: { marginTop: '8px' } });
           for (const t of ['underground', 'surface', 'elevated']) {
             const cost = M.trackCost(geo, t, g.clock.y);
@@ -1569,6 +1625,9 @@
         h('div', { class: 'fm-h' }, h('b', null, '本月收支'), h('span', { class: 'tiny muted' }, g.clock.y + '年' + g.clock.m + '月 · 已结算 ' + c.days + ' 天')),
         free ? null : row('bank', '政府拨款', '+' + U.fmtMoney(c.grant), 'in'),
         row('ticket', '票款', '+' + U.fmtMoney(c.fare), 'in'),
+        c.propertyIncome > 0.05 ? row('building', '站城物业回款', '+' + U.fmtMoney(c.propertyIncome), 'in') : null,
+        c.propertyInvest > 0.05 ? row('building', '站城物业投资', '−' + U.fmtMoney(c.propertyInvest), 'out') : null,
+        c.propertyCost > 0.05 ? row('building', '站城物业维护', '−' + U.fmtMoney(c.propertyCost), 'out') : null,
         c.commerce > 0.05 ? row('bag', '车站商业（广告与租金）', '+' + U.fmtMoney(c.commerce), 'in') : null,
         free || !c.ppp ? null : row('briefcase', '政府合同（补助、付费与退还保证金）', '+' + U.fmtMoney(c.ppp), 'in'),
         free || !c.reward ? null : row('gift', '任务奖励', '+' + U.fmtMoney(c.reward), 'in'),
@@ -1818,7 +1877,7 @@
   // ---------- 财政：月度账本（科目分开：财政收入、融资到账、建设支出、运营成本、利息、本金偿还、逾期费用） ----------
   const BK = CM.Economy.BUILD_KINDS;
   const buildOf = function (r) { let s = 0; for (const k of BK) s += r[k] || 0; return s; };
-  const incomeOf = function (r) { return (r.grant || 0) + (r.fare || 0) + (r.reward || 0) + (r.commerce || 0) + (r.ppp || 0) + (r.fleetSale || 0); };
+  const incomeOf = function (r) { return (r.grant || 0) + (r.fare || 0) + (r.reward || 0) + (r.commerce || 0) + (r.ppp || 0) + (r.fleetSale || 0) + (r.propertyIncome || 0); };
   const serviceOf = function (r) { return (r.interest || 0) + (r.principal || 0) + (r.penalty || 0); };
   UI.prototype.ledgerBlock = function () {
     const g = this.g(), E = g.econ, c = E.cur, free = E.isFree(), oi = E.opsIndex(g.clock.y), M = function (v) { return U.fmtMoney(v || 0); };
@@ -1826,7 +1885,8 @@
     const box = h('div');
     const group = function (title, rows, cls) { box.appendChild(h('div', { class: 'fl-g ' + (cls || '') }, h('div', { class: 'fl-h' }, title), this.kv(rows))); }.bind(this);
     if (!free) box.appendChild(this.kv([['期初一般资金', M(c.start)], ['期初建设专项资金', M(c.capexStart)]]));
-    group('财政收入', [['政府拨款', '+ ' + M(c.grant)], ['票款', '+ ' + M(c.fare)], ['车站商业（广告与租金）', '+ ' + M(c.commerce)], c.ppp || g.corp ? ['政府合同（补助、付费与退还保证金）', '+ ' + M(c.ppp)] : null, ['任务奖励', '+ ' + M(c.reward)], c.fleetSale ? ['出售列车（残值）', '+ ' + M(c.fleetSale)] : null], 'in');
+    group('财政收入', [['政府拨款', '+ ' + M(c.grant)], ['票款', '+ ' + M(c.fare)], ['车站商业（广告与租金）', '+ ' + M(c.commerce)], c.propertyIncome ? ['站城物业回款', '+ ' + M(c.propertyIncome)] : null, c.ppp || g.corp ? ['政府合同（补助、付费与退还保证金）', '+ ' + M(c.ppp)] : null, ['任务奖励', '+ ' + M(c.reward)], c.fleetSale ? ['出售列车（残值）', '+ ' + M(c.fleetSale)] : null], 'in');
+    if (c.propertyIncome || c.propertyInvest || c.propertyCost) group('站城物业', [['销售分成与租金', '+ ' + M(c.propertyIncome)], ['投资', '− ' + M(c.propertyInvest)], ['维护', '− ' + M(c.propertyCost)]]);
     if (!free) group('融资到账（不计入收入）', [['债券募集 → 建设专项资金', '+ ' + M(c.bond)]], 'fin');
     group('建设支出', [['建设与拆迁', '− ' + M(buildOf(c))], !free ? ['其中由专项资金支付', M(c.capexUse)] : null], 'out');
     group('运营成本', [['列车运行与车站', '− ' + M(c.ops)], c.todCost ? ['车站商业运营与维护', '− ' + M(c.todCost)] : null], 'out');
@@ -2165,16 +2225,32 @@
     const p = U.clamp(v || 0, 0, 1), C = 2 * Math.PI * 17;
     return h('span', { class: 'tk-ring ' + (cls || ''), html: '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" class="bg"/><circle cx="20" cy="20" r="17" class="fg" stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + (C * (1 - p)).toFixed(2) + '"/></svg><b>' + Math.round(p * 100) + '<small>%</small></b>' });
   };
+  UI.prototype.page_development = function (id) {
+    const g = this.g(), tab = id === 'population' || id === 'property' ? id : 'project';
+    const el = h('div');
+    el.appendChild(this.pageTabs([['project', '发展项目', 'building'], ['property', '站城开发', 'briefcase'], ['population', '人口统计', 'people']], tab, next => {
+      this.openPage('development', next, { replaceTop: true });
+      this.rBody.scrollTop = 0;
+    }));
+    if (tab === 'population') el.appendChild(this.page_metric('pop').el);
+    else if (CM.Development.enabled(g)) {
+      el.appendChild(tab === 'property' ? CM.Development.propertyPanel(this, g, () => this.rerenderPage()) : CM.Development.panel(this, g));
+    }
+    else el.appendChild(h('div', { class: 'note' }, '发展项目在正式游玩中开放。'));
+    return { title: '城市发展', el };
+  };
+
   UI.prototype.page_tasks = function (id) {
     const g = this.g(), T = g.tasks, self = this, ch = g.econ.mode === 'challenge', E = CFG.economy;
     const ym = g.ym();
     const corp = !!(CM.Corp && CM.Corp.enabled(g));   // 政府合同（v2.5）：经营挑战的真实城市
-    let tab = id || this.taskTab || 'active';
+    let tab = id === 'development' || this.taskTab === 'development' && !id ? 'todo' : (id || this.taskTab || (g.tutorial ? 'active' : 'todo'));
     const railway = CM.RailConcessions.definition(g);
     if (tab === 'ppp' && !corp || tab === 'rail' && !railway) tab = 'active';
     this.taskTab = tab;
     const el = h('div', { class: 'tk-page' });
     const tabs = [['active', '进行中 ' + T.active.length, 'flag'], ['done', '已完成 ' + T.done.length, 'check'], ['failed', '未完成 ' + T.failed.length, 'error']];
+    if (!g.tutorial) tabs.unshift(['todo', '待办', 'flag']);
     if (corp) tabs.push(['ppp', '合同' + (g.corp ? ' ' + (g.corp.tenders.length + g.corp.contracts.length) : ''), 'briefcase']);
     if (railway) tabs.push(['rail', '铁路经营权', 'train']);
     el.appendChild(this.pageTabs(tabs, tab, function (t) {
@@ -2371,6 +2447,7 @@
       update();
       return { title: '任务', el };
     }
+    if (tab === 'todo') { CM.Todo.render(this, g, body); return { title: '任务', el }; }
     if (tab === 'ppp') { this.corpTab(body); return { title: '任务', el: el }; }
     if (tab === 'active') {
       if (!ch) body.appendChild(this.callout('info', 'info', '自由建造模式：任务仅供参考，没有奖励，未完成也不会有后果。'));

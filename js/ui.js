@@ -26,7 +26,7 @@
   // 详情页图标与配色
   const PAGE_ICON = {
     build: ['hammer', 'b-blue'], station: ['station', 'b-teal'], line: ['route', 'b-blue'], road: ['car', 'b-orange'], zone: ['map', 'b-slate'],
-    finance: ['coin', 'b-gold'], tasks: ['flag', 'b-violet'], date: ['clock', 'b-teal'], saves: ['save', 'b-blue'], help: ['help', 'b-slate'], data: ['info', 'b-slate'],
+    finance: ['coin', 'b-gold'], tasks: ['flag', 'b-violet'], development: ['building', 'b-teal'], date: ['clock', 'b-teal'], saves: ['save', 'b-blue'], help: ['help', 'b-slate'], data: ['info', 'b-slate'],
     metric: ['chart', 'b-blue'], multi: ['layers', 'b-blue'], facility: ['pin', 'b-orange'], guide: ['book', 'b-green'],
   };
   const METRIC_ICON = { pop: ['people', 'b-blue'], share: ['metro', 'b-teal'], cong: ['car', 'b-orange'], commute: ['timer', 'b-violet'], sat: ['smile', 'b-green'] };
@@ -97,6 +97,8 @@
     this.taskCnt = h('span', { class: 'cnt' }, '0');
     const taskBtn = hb('tasks', 'flag', '任务', function () { self.openTop('tasks'); }, 'ui.tasks');
     taskBtn.appendChild(this.taskCnt);
+    const developmentBtn = hb('development', 'building', '城市发展', function () { self.openTop('development'); });
+    developmentBtn.setAttribute('aria-label', '城市发展');
     this.top = h('header', { id: 'hudTop', class: 'hud hidden' },
       h('div', { class: 'cluster glass citybar' },
         datePill,
@@ -110,6 +112,7 @@
       h('div', { class: 'cluster glass actions' },
         hb('search', 'search', '搜索车站、线路、道路、区域', function () { self.openSearch(); }, 'ui.search'),
         taskBtn,
+        developmentBtn,
         hb('stats', 'chart', '城市统计', function () { self.openStats(); }, 'ui.stats'),
         hb('theme', 'moon', '深色模式', function () { self.toggleTheme(); }, 'ui.theme'),
         hb('settings', 'gear', '设置', function () { self.showSettings(); }),
@@ -723,7 +726,8 @@
     if (c.sat.ico !== sk) { c.sat.ico = sk; c.sat.badge.className = 'badge ' + (sk === 'smile' ? 'b-green' : (sk === 'meh' ? 'b-orange' : 'b-red')); c.sat.badge.innerHTML = ''; c.sat.badge.appendChild(ic(sk)); }
     if (CM.Voices && this.updateSatDock) this.updateSatDock(g);
     if (this.tickOps) this.tickOps(g);
-    const n = g.tasks.active.length;
+    const todo = CM.Todo.count(g, this), n = todo.n || g.tasks.active.length;
+    this.taskCnt.classList.toggle('urgent', todo.urgent);
     this.taskCnt.textContent = n; this.taskCnt.style.display = n ? '' : 'none';
     const s = this.save;
     this.hbtns.menu.classList.toggle('warn-dot', s.state === 'error');
@@ -741,6 +745,7 @@
       c[k].el.classList.toggle('on', on);
     }
     this.hbtns.tasks.classList.toggle('on', !!top && top.kind === 'tasks');
+    this.hbtns.development.classList.toggle('on', top?.kind === 'development' || this.tools.developmentPick?.game === g);
   };
   function fmtHM(t) { if (!t) return ''; const d = new Date(t); return U.pad2(d.getHours()) + ':' + U.pad2(d.getMinutes()); }
   // 存档状态：注明已保存的是哪个游戏时刻，避免把旧快照当作当前进度
@@ -1726,8 +1731,13 @@
     }
     else if (key === 'tasks') {
       if (open && top.kind === 'tasks') { this.closePanel(); return; }
-      this.taskTab = 'active';
-      this.openPage('tasks', 'active', { root: true });
+      const tab = this.g().tutorial ? 'active' : 'todo';
+      this.taskTab = tab;
+      this.openPage('tasks', tab, { root: true });
+    }
+    else if (key === 'development') {
+      if (open && top.kind === 'development') this.closePanel();
+      else this.openPage('development', 'project', { root: true });
     }
     else if (key === 'save') this.openPage('saves', null, { toggle: true, root: true });
     else this.openPage('metric', key, { toggle: true, root: true });

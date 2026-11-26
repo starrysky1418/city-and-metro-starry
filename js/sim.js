@@ -1602,6 +1602,65 @@
     return buf.skim;
   };
 
+  // 地面地铁优先绕到可通车的横向道路。用有限绕行时间保留边缘小区的道路可达性。
+  Model.prototype.surfaceRoadImpact = function (net) {
+    if (!net) return { links: new Map() };
+    const road = this.road, cached = net.surfaceRoad;
+    if (cached?.road === road) return cached;
+    const links = new Map(), buckets = new Map(), tracks = new Set(), size = 4;
+    const bucketsAt = (a, b, visit) => {
+      for (let y = Math.floor(Math.min(a[1], b[1]) / size); y <= Math.floor(Math.max(a[1], b[1]) / size); y++) {
+        for (let x = Math.floor(Math.min(a[0], b[0]) / size); x <= Math.floor(Math.max(a[0], b[0]) / size); x++) visit(x + ':' + y);
+      }
+    };
+    for (const { seg, g } of net.C.segs.values()) {
+      const track = CM.Metro.trackKey(seg);
+      if (tracks.has(track)) continue;
+      tracks.add(track);
+      for (const part of g.parts || [{ type: seg.type, g }]) {
+        if (part.type !== 'surface') continue;
+        const pts = part.g.pts;
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i], piece = { a, b, track };
+          bucketsAt(a, b, key => {
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key).push(piece);
+          });
+        }
+      }
+    }
+    for (const link of buckets.size ? road.links : []) {
+      const group = this.city.roadGroups?.[link.name - 1];
+      if (link.cls >= 4 || link.bridge || (group?.flags & 3)) continue;
+      const hits = new Set();
+      for (let i = 1; i < link.pts.length; i++) {
+        const a = link.pts[i - 1], b = link.pts[i], dx = b[0] - a[0], dy = b[1] - a[1];
+        bucketsAt(a, b, key => {
+          for (const t of buckets.get(key) || []) {
+            if (hits.has(t.track)) continue;
+            const ex = t.b[0] - t.a[0], ey = t.b[1] - t.a[1];
+            const det = dx * ey - dy * ex;
+            if (Math.abs(det) < 1e-9) continue;
+            const x = t.a[0] - a[0], y = t.a[1] - a[1];
+            const r = (x * ey - y * ex) / det, q = (x * dy - y * dx) / det;
+            if (r >= 0 && r <= 1 && q >= 0 && q <= 1) hits.add(t.track);
+          }
+        });
+      }
+      if (hits.size) links.set(link.id, {
+        delay: (link.cls >= 3 ? 0.25 : 3) * Math.min(3, hits.size),
+        capacity: link.cls >= 3 ? 0.85 : 0.4,
+      });
+    }
+    let delays = null, capacities = null;
+    if (links.size) {
+      delays = new Float32Array(road.links.length);
+      capacities = new Float32Array(road.links.length).fill(1);
+      for (const [id, hit] of links) { delays[id] = hit.delay; capacities[id] = hit.capacity; }
+    }
+    return net.surfaceRoad = { road, links, delays, capacities };
+  };
+
   // 一个时段的一次完整迭代（buf 为该求解流程独占的临时缓冲区）。P.dt 为日类型（工作日 / 周末）
   Model.prototype.iterate = function* (net, P, p, opts) {
     opts = opts || {};
@@ -1790,7 +1849,14 @@
       }
     }
     // ---- 汽车分配（起点分块并行，见 carOriginRow；工作线程不可用或同步求解时在主线程逐起点计算，结果相同） ----
-    const road = this.road, nA = road.nA, G = carGraph(this);
+    const road = this.road, nA = road.nA, G = carGraph(this), surface = this.surfaceRoadImpact(net);
+    if (P.surfaceRoad !== surface) {
+      for (let a = 0; a < nA; a++) {
+        const oldDelay = P.surfaceRoad?.road === road ? P.surfaceRoad.links.get(a >> 1)?.delay || 0 : 0;
+        P.arcTime[a] = Math.max(road.arcT0[a], P.arcTime[a] - oldDelay) + (surface.links.get(a >> 1)?.delay || 0);
+      }
+      P.surfaceRoad = surface;
+    }
     let work = buf.roadWork;
     if (!work || work.G !== G) { work = buf.roadWork = carWork(G); work.G = G; work.aux = new Float32Array(nA); work.auxB = new Float32Array(nA); }
     const aux = work.aux;
@@ -1848,7 +1914,11 @@
     // 弹性需求先按总量投影，再对实际 BPR 成本做线搜索。固定 0.4 混合会使近似等价道路反复抢走整股客流。
     let demand=0;for(let k=0;k<carDem.length;k++)demand+=carDem[k];
     const scale=P.demandTotal>1e-6?demand/P.demandTotal:1;
-    const travel=(a,v)=>{const x=v/(road.arcCap[a]*capF);return road.arcT0[a]*Math.min(8,1+A*x*x*x*x);};
+    const travel=(a,v)=>{
+      const id = a >> 1;
+      const x = v / (road.arcCap[a] * capF * (surface.capacities ? surface.capacities[id] : 1));
+      return road.arcT0[a] * Math.min(8, 1 + A*x*x*x*x) + (surface.delays ? surface.delays[id] : 0);
+    };
     let lam=1;
     if(P.iters>0&&demand>0){
       let line=buf.lineSearch;if(!line||line.base.length!==nA)line=buf.lineSearch={base:new Float64Array(nA),delta:new Float64Array(nA),active:new Int32Array(nA)};
@@ -1870,8 +1940,7 @@
       const oldVol = P.arcVol[a], oldTime = P.arcTime[a];
       const v = oldVol * scale * (1 - lam) + aux[a] * lam;
       P.arcVol[a] = v;
-      const x = v / (road.arcCap[a] * capF);
-      P.arcTime[a] = road.arcT0[a] * Math.min(8, 1 + A * x * x * x * x);
+      P.arcTime[a] = travel(a, v);
 
       st.congNum += v * road.arcLen[a] * (P.arcTime[a] / road.arcT0[a]);
       st.congDen += v * road.arcLen[a];
@@ -2300,7 +2369,7 @@
         const net = nets[job[0]], dt = job[1], p = job[2];
         const L = self.ctxs[dt].per[p];
         const P = {
-          arcVol: Float32Array.from(L.arcVol), arcTime: Float32Array.from(L.arcTime), skimT: Float32Array.from(L.skimT), skimK: Float32Array.from(L.skimK),
+          arcVol: Float32Array.from(L.arcVol), arcTime: Float32Array.from(L.arcTime), surfaceRoad: L.surfaceRoad, skimT: Float32Array.from(L.skimT), skimK: Float32Array.from(L.skimK),
           desTot: new Float32Array(self.B * self.B), desMetro: new Float32Array(self.B * self.B), zTrips: new Float32Array(self.Z), zMetro: new Float32Array(self.Z), zAccess: new Float32Array(self.Z),
           stats: null, demandTotal:L.demandTotal, iters: Math.max(1, L.iters), dt: dt,
         };
@@ -2327,6 +2396,10 @@
       const B = base ? { wd: self.aggregate(base.wd, baseNet), we: self.aggregate(base.we, baseNet) } : { wd: empty(), we: empty() };
       const Dr = { wd: self.aggregate(draft.wd, draftNet), we: self.aggregate(draft.we, draftNet) };
       result.base = self.weekAvg(B.wd, B.we, baseNet); result.draft = self.weekAvg(Dr.wd, Dr.we, draftNet);
+      result.noise = {
+        before: CM.Noise.assess(self, baseNet?.C, base.wd, base.we).people,
+        after: CM.Noise.assess(self, draftNet.C, draft.wd, draft.we).people,
+      };
       result.wk = { base: B.wd, draft: Dr.wd }; result.we = { base: B.we, draft: Dr.we };
       // 出行目的：地铁出行（人次/日），工作日与周末
       result.purpose = PK.map(function (k, q) { return { key: k, wd0: B.wd[MKEY[q]] || 0, wd1: Dr.wd[MKEY[q]] || 0, we0: B.we[MKEY[q]] || 0, we1: Dr.we[MKEY[q]] || 0, tot: Dr.wd[TKEY[q]] || 0 }; });
@@ -2372,6 +2445,18 @@
         result.lines.push({ id: lid, name: ln ? ln.name : '（已拆除）', color: ln ? ln.color : '#999', before: lb0.get(lid) || 0, after: lb1.get(lid) || 0 });
       }
       // 建设效果归因（v2.3，impact.js）：受影响线路各站的日客流（周平均，进出站 + 换乘）与工作日早高峰最大满载率
+      // 既有线的分流（v3.3）：草案没改动的线路，乘客被新线分走（或新线带来换乘）后客流也会变化，一并列出（other），
+      // 变化很小的（约 2%、200 人次以内，迭代误差量级）不列；减少最多的排前面
+      const affSet = new Set(affectedLineIds), others = [];
+      new Set(Array.from(lb0.keys()).concat(Array.from(lb1.keys()))).forEach(function (lid) {
+        if (affSet.has(lid)) return;
+        const b = lb0.get(lid) || 0, a = lb1.get(lid) || 0;
+        if (Math.abs(a - b) < Math.max(200, b * 0.02)) return;
+        const ln = draftC.net.lines[lid] || (baseNet?.C?.net?.lines[lid]);
+        others.push({ id: lid, name: ln ? ln.name : '（已拆除）', color: ln ? ln.color : '#999', before: b, after: a, other: true });
+      });
+      others.sort(function (x, y) { return (x.after - x.before) - (y.after - y.before); });
+      result.existingLines = others.slice(0, 8);
       const stFlow = function (perSet, net) {
         if (!perSet || !net) return null;
         const a = self.stationDaily(perSet.wd, net), b = self.stationDaily(perSet.we, net), out = new Float32Array(net.N);
@@ -2398,6 +2483,10 @@
           result.lineLF.push({ id: rt.lineId, label: rt.label, lf: mx / Math.max(1, am.freq[r] * self.capOf(r, draftNet)), km: rt.lenM / 1000 });
         }
       }
+      const aCross = self.surfaceRoadImpact(baseNet).links, bCross = self.surfaceRoadImpact(draftNet).links;
+      result.surfaceCrossings = { added: 0, removed: 0 };
+      for (const [id, hit] of bCross) if (hit.delay > (aCross.get(id)?.delay || 0)) result.surfaceCrossings.added++;
+      for (const [id, hit] of aCross) if (hit.delay > (bCross.get(id)?.delay || 0)) result.surfaceCrossings.removed++;
       // 道路变化：工作日早高峰按道路名汇总
       if (base) {
         const road = self.road, byName = new Map();

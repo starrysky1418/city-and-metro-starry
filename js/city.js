@@ -541,6 +541,13 @@
       Geo.fill(tmp, W, H, 1, feats);
       for (let c = 0; c < N; c++) if (tmp[c] && rr[c] === NONE) rr[c] = k;
     };
+    const fillPoly = function (shape, k) {
+      const polys = typeof shape[0][0] === 'number' ? [shape] : shape;
+      fillCells(polys.map(function (pl) {
+        const p = new Float32Array([].concat.apply([], pl));
+        return { rings: [{ outer: true, p: p }], bbox: Geo.bbox(p) };
+      }), k);
+    };
     const streetOf = new Map(), distOf = new Map();
     regions.forEach(function (rg, k) {
       if (rg.geo) {
@@ -557,15 +564,32 @@
         if (!rg.woodBounds || rg.woodBounds.some(([x0,y0,x1,y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) rr[c] = k;
       }
       // 显式多边形（格坐标），可为多个：[[x, y], …] 或 [[[x, y], …], …]
-      if (rg.poly) {
-        const polys = typeof rg.poly[0][0] === 'number' ? [rg.poly] : rg.poly;
-        fillCells(polys.map(function (pl) { const p = new Float32Array([].concat.apply([], pl)); return { rings: [{ outer: true, p: p }], bbox: Geo.bbox(p) }; }), k);
-      }
+      if (rg.poly) fillPoly(rg.poly, k);
       for (const s of rg.streets || []) if (!streetOf.has(s)) streetOf.set(s, k);
       for (const s of rg.district || []) if (!distOf.has(s)) distOf.set(s, k);
     });
     for (const f of Geo.admin) if (f.level === 8 && streetOf.has(f.name)) fillCells([f], streetOf.get(f.name));
     for (const f of Geo.admin) if ((f.level === 6 || f.level === 7) && distOf.has(f.name)) fillCells([f], distOf.get(f.name));   // 区（东京特别区为 7 级）
+    regions.forEach(function (rg, k) { if (rg.fallbackPoly) fillPoly(rg.fallbackPoly, k); });
+    // 写了 seedIn 的种子只认这几个一级行政区里的格，尼罗河两岸分属两省时不会越河划片
+    const seeds = [];
+    regions.forEach(function (rg, k) { if (rg.seed) seeds.push({ k: k, x: rg.seed[0], y: rg.seed[1], w: rg.seedW || 1, inn: rg.seedIn || null }); });
+    if (seeds.length) {
+      const adm = new Int16Array(N).fill(-1), anames = [];
+      Geo.admin.filter(function (f) { return f.level === 6 || f.level === 7; }).forEach(function (f) {
+        const name = f.name;
+        let a = anames.indexOf(name); if (a < 0) { a = anames.length; anames.push(name); }
+        const tmp = new Uint8Array(N); Geo.fill(tmp, W, H, 1, [f]);
+        for (let c = 0; c < N; c++) if (tmp[c] && adm[c] < 0) adm[c] = a;
+      });
+      for (const s of seeds) s.ai = s.inn ? s.inn.map(function (n) { return anames.indexOf(n); }) : null;
+      for (let c = 0; c < N; c++) {
+        if (rr[c] !== NONE) continue;
+        const x = c % W + 0.5, y = ((c / W) | 0) + 0.5; let best = Infinity, bk = -1;
+        for (const s of seeds) { if (s.ai && (adm[c] < 0 || !s.ai.includes(adm[c]))) continue; const d = ((x - s.x) * (x - s.x) + (y - s.y) * (y - s.y)) / (s.w * s.w); if (d < best) { best = d; bk = s.k; } }
+        if (bk >= 0) rr[c] = bk;
+      }
+    }
     const def = regions.length - 1;
     this.region = new Uint8Array(N);
     for (let c = 0; c < N; c++) this.region[c] = rr[c] === NONE ? def : rr[c];
@@ -721,6 +745,11 @@
         id++;
       }
       if (comp[c] >= 0) keep.add(comp[c]);
+    }
+    for (let c = 0; c < N; c++) {
+      if (!el[c] || !R[reg[c]].island) continue;
+      if (comp[c] < 0) { const q = [c]; vis[c] = 1; wr.fill(0); bfs(q, function (v) { return el[v]; }, vis, wr); for (const v of q) if (LF[v] >= 0.5) comp[v] = id; id++; }
+      keep.add(comp[c]);
     }
     const inM = function (c) { return keep.has(comp[c]); };
     // 从地图边缘出发、不经过可建设范围能到达的未开放格属于外围的一整块；到达不了的是被包围的小块（可以建设）
@@ -1497,7 +1526,7 @@
     const targetNow = U.interp(CFG.growth.popCurve, year) * boost;
     let dP = (target - targetNow) * egp + 0.04 * (targetNow - tot.pop);
     dP = Math.max(dP, -0.002 * tot.pop);
-    const tJ = target * U.interp(CFG.growth.jobsRatio, year + 1 / 12) * ejf;
+    const tJ = target * U.interp(CFG.growth.jobsRatio, year + 1 / 12) * ejf + (this.developmentJobs || 0);
     let dJ = (tJ - tot.jobs) * 0.12 + Math.max(0, dP) * U.interp(CFG.growth.jobsRatio, year) * 0.3;
     dJ = Math.max(dJ, -0.002 * tot.jobs);
     const eraMul = year < 2000 ? 0.8 : (year < 2010 ? 0.8 + 0.2 * (year - 2000) / 10 : Math.min(1.15, 1 + 0.15 * (year - 2010) / 20));
@@ -1594,8 +1623,79 @@
         for (let c = 0; c < N; c++) arr[c] *= f;
       }
     };
-    yield* add(this.pop, capR, wR, sR, dP);
-    yield* add(this.jobs, capJ, wJ, sJ, dJ);
+    // Municipal investment redirects a share of existing growth to the parcel.
+    const project = ctx.development;
+    const reserve = (arr, cap, limit, budget, residential) => {
+      let remaining = Math.min(limit, budget), added = 0;
+      const planned = project.type === 'housing' ? LU.RES : project.type === 'jobs' ? LU.COM : LU.MIX;
+      for (let i = 0; i < project.cells.length && remaining > 0.001; i++) {
+        const c = project.cells[i], rural = this.lu[c] === LU.RURAL;
+        const fraction = this.landFrac[c] * (1 - this.taken[c]);
+        const zoned = residential ? resCap(planned) : jobCap(planned, this.regions[this.region[c]].plan);
+        const renewal = project.renewal && (this.lu[c] === LU.RES || this.lu[c] === LU.MIX || this.lu[c] === LU.COM);
+        const updated = renewal ? LU.MIX : planned;
+        const updateCap = renewal ? (residential ? resCap(updated) : jobCap(updated, this.regions[this.region[c]].plan)) : zoned;
+        const capacity = rural || renewal ? Math.max(cap[c], updateCap * eraMul * fraction) : cap[c];
+        const inc = Math.min(capacity - arr[c], remaining / (project.cells.length - i), 100);
+        if (inc <= 0) continue;
+        if (rural || renewal && arr[c] + inc > cap[c]) this.lu[c] = this.plan[c] = updated;
+        arr[c] += inc;
+        added += inc;
+        remaining -= inc;
+        if (!seen[c]) { seen[c] = 1; changed.push(c); }
+      }
+      return added;
+    };
+    if (project) {
+      project.addedPop = reserve(this.pop, capR, project.pop, Math.max(0, dP) * project.share, true);
+      if (project.jobs > 0.001) {
+        const [x0, y0, x1, y1] = project.bounds;
+        const seenDonors = new Map(), donors = [];
+        let available = 0, competing = 0;
+        for (let c = 0; c < N; c++) {
+          if (c && (c & 4095) === 0) yield;
+          if (!this.street[c] || ![LU.COM, LU.MIX, LU.IND].includes(this.lu[c])) continue;
+          const x = c % W, y = Math.floor(c / W);
+          if (x >= x0 && x <= x1 && y >= y0 && y <= y1) continue;
+          const distance = Math.hypot(Math.max(0, x0 - x, x - x1), Math.max(0, y0 - y, y - y1));
+          if (distance * CFG.CELL_M > 12000 || !ctx.cellWalk || ctx.cellWalk[c] > 1000) continue;
+          competing += Math.max(0, capJ[c] - this.jobs[c]) * 0.05;
+          if (this.jobs[c] < 100) continue;
+          const transfer = this.jobs[c] * 0.001 / (1 + distance * CFG.CELL_M / 4000);
+          donors.push([c, transfer]);
+          available += transfer;
+        }
+        const labor = Math.min(1, project.workers / Math.max(20000, project.jobs * 6));
+        const market = labor / (1 + competing / Math.max(2000, project.jobs * 2));
+        const regular = Math.max(0, dJ) * project.share * market;
+        const remainingGrowth = Math.max(0, tot.jobs * 0.02 - (this.developmentJobs || 0));
+        const net = Math.min(remainingGrowth, Math.max(0, dJ + dP * 0.2) * 0.12 * market, project.workers * 0.002);
+        const moving = available * market * (project.renewal ? 0.65 : 0.4);
+        const budget = regular + net + moving;
+        const added = reserve(this.jobs, capJ, project.jobs, budget, false);
+        const realized = budget > 0 ? added / budget : 0;
+        project.regularJobs = regular * realized;
+        project.addedJobs = added;
+        project.netJobs = net * realized;
+        project.movedJobs = 0;
+        this.developmentJobs = (this.developmentJobs || 0) + project.netJobs;
+        for (const [c, limit] of donors) {
+          const before = this.jobs[c];
+          this.jobs[c] -= limit / available * moving * realized;
+          const lost = before - this.jobs[c];
+          project.movedJobs += lost;
+          const region = this.region[c];
+          seenDonors.set(region, (seenDonors.get(region) || 0) + lost);
+        }
+        let largest = 0;
+        for (const [region, lost] of seenDonors) if (lost > largest) {
+          largest = lost;
+          project.source = this.regions[region].name;
+        }
+      }
+    }
+    yield* add(this.pop, capR, wR, sR, dP - (project?.addedPop || 0));
+    yield* add(this.jobs, capJ, wJ, sJ, dJ - (project?.regularJobs || 0));
     let newUrban = 0, streetsChanged = false;
     // 工地（只用于画面上的塔吊，不参与模拟、不存档）：新城市化或明显加高的街区，记录开工月份
     const sites = this.sites || (this.sites = new Map());
@@ -1641,6 +1741,7 @@
   City.prototype.serialize = function () {
     const out = {
       seed: this.seed,
+      developmentJobs: this.developmentJobs || undefined,
       pop: U.packTyped(this.pop, 'f32'), jobs: U.packTyped(this.jobs, 'f32'), bh: U.packTyped(this.bh, 'f32'),
       taken: U.packTyped(this.taken, 'f32'), lu: U.packTyped(this.lu, 'u8'), street: U.packTyped(this.street, 'u8'),
       urbanYear: U.packTyped(this.urbanYear, 'u16'),
@@ -1686,6 +1787,7 @@
     this.lockRuleOld = (s.lockRule || 1) < 2; this.lockVer++; this._lk = null;
     const N = this.N;
     const chk = function (a, n) { if (a.length !== n) throw new Error('城市数据尺寸不符'); return a; };
+    this.developmentJobs = Number.isFinite(s.developmentJobs) ? Math.max(0, s.developmentJobs) : 0;
     this.pop = chk(U.unpackTyped(s.pop), N); this.jobs = chk(U.unpackTyped(s.jobs), N); this.bh = chk(U.unpackTyped(s.bh), N);
     this.taken = chk(U.unpackTyped(s.taken), N); this.lu = chk(U.unpackTyped(s.lu), N); this.street = chk(U.unpackTyped(s.street), N);
     this.urbanYear = chk(U.unpackTyped(s.urbanYear), N);
@@ -1703,6 +1805,9 @@
       // 同一网页版格网内的展示修订；不接受独立版扩图数据，也不平移玩家线网。
       const rg = this.regions[k];
       if (rg.mapBackground) { this.regionOpen[k] = 0; this.regionOpenDate[k] = null; }
+      if (!this.regionOpen[k] && !rg.mapBackground && rg.openOnRestore && rg.open != null && rg.open <= fy) {
+        this.regionOpen[k] = 1; this.regionOpenDate[k] = [rg.open, 1];
+      }
       if (D.displayRevision && (s.displayRevision || 1) < D.displayRevision && ((CM.mapId === 'hz' && rg.id === 'jianqiao') || (!D.airport && rg.id === 'airport')) && rg.open != null && rg.open <= year && !this.regionOpen[k]) {
         this.regionOpen[k] = 1; this.regionOpenDate[k] = [rg.open, 1];
       }

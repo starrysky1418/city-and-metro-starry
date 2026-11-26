@@ -35,6 +35,7 @@
   };
 
   const FLAVOR = {
+    us: { name: '公共机构与联邦资金', from: 1968, note: '参照纽约大都会运输署以发债、专项税和联邦拨款支持资本计划的做法' },
     cn: { name: 'PPP 特许经营', from: 2002, note: '参照中国内地 2000 年代起的地铁 PPP 与特许经营' },
     hk: { name: '铁路＋物业', from: 1980, note: '参照香港以沿线物业开发收益支持铁路建设的做法' },
     tw: { name: '联合开发与 BOT', from: 1990, note: '参照台北捷运的联合开发与 BOT' },
@@ -42,7 +43,7 @@
     jp: { name: '公私合作', from: 1970, note: '参照日本地方政府与民间企业合资建设、运营轨道的做法' },
     sg: { name: '轨道运营授权', from: 1987, note: '参考新加坡早期轨道运营授权与后续风险分担；投标和补助采用游戏统一的合同规则。' }
   };
-  const MAP_FLAVOR={gz:'cn',hz:'cn',wh:'cn',sh:'cn',bj:'cn',sz:'cn',nj:'cn',su:'cn',cd:'cn',cq:'cn',tj:'cn',qd:'cn',xa:'cn',nb:'cn',hk:'hk',tp:'tw',pa:'fr',tk:'jp',sg:'sg'};
+  const MAP_FLAVOR={mi:'us',gz:'cn',hz:'cn',wh:'cn',sh:'cn',bj:'cn',sz:'cn',nj:'cn',su:'cn',cd:'cn',cq:'cn',tj:'cn',qd:'cn',xa:'cn',nb:'cn',hk:'hk',tp:'tw',pa:'fr',tk:'jp',sg:'sg'};
   Corp.flavor = function (g) { return g ? FLAVOR[MAP_FLAVOR[g.mapId]] || CM.Traits?.FLAVOR[CM.DATA.corpFlavor] || null : null; };
   Corp.enabled = function (g) { return !!g && !!g.econ && g.econ.mode === 'challenge' && !g.tutorial && !CM.DATA.noDynTasks && !!Corp.flavor(g); };
   Corp.grade = function (r) { return r >= 80 ? 'A' : (r >= 60 ? 'B' : (r >= 40 ? 'C' : 'D')); };

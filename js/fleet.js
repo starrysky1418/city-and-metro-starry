@@ -24,6 +24,8 @@
   };
   const M = function (o) { return Object.assign({ maps: null, max: 8, life: 30, kmh: 80 }, o, { look: Object.assign({}, LOOK[o.look] || LOOK.steel, o.lookX || {}) }); };
   const MODELS = F.MODELS = [
+    M({ id: 'mi-budd', maps: ['mi'], name: '迈阿密地铁不锈钢列车（巴德）', short: '巴德车', from: 1983, to: 2017, cap: 260, price: 330, ops: 0.98, life: 35, max: 6, look: 'steel', lookX: { band: '#f37021' }, desc: '高架地铁开通时的不锈钢车厢，车身两侧是橙绿色带，两节一组编组' }),
+    M({ id: 'mi-hitachi', maps: ['mi'], name: '迈阿密地铁新一代列车（日立）', short: '日立车', from: 2017, to: 9999, cap: 270, price: 420, ops: 0.86, max: 6, look: 'whiteNew', lookX: { band: '#00a651' }, desc: '2017 年起替换旧车的新一代列车，有空调和车厢内的动态线路图' }),
     M({ id: 'tj-jinbin', maps: ['tj'], name: '津滨轻轨', short: '津滨轻轨', from: 2004, to: 9999, cap: 235, price: 390, ops: 0.95, max: 6, kmh: 80, look: 'steel', lookX: { band: '#2078b5' }, desc: '津滨轻轨接手剧本的初期列车，性能与经费为游戏设定。' }),
     M({ id: 'nb-b80', maps: ['nb'], name: '宁波地铁 B 型', short: '宁波 B 型', from: 2009, to: 9999, cap: 245, price: 420, ops: 0.92, max: 6, kmh: 80, look: 'steel', lookX: { band: '#167bbc' }, desc: '参考宁波轨道交通 1 号线六节 B 型车。游戏允许在开局提前采购。' }),
     M({ id: 'nb-s160', maps: ['nb'], name: '宁波市域快车 S160', short: '宁波 S160', from: 2030, to: 9999, cap: 225, price: 660, ops: 1.21, max: 8, kmh: 160, look: 'future', lookX: { band: '#297c70' }, desc: '游戏虚构的市域快车，适合港区与奉化方向的长距离走廊。' }),
@@ -195,6 +197,20 @@
   // 价格：每节价格 × 节数 × 本城造价水平 × 当年造价指数
   const scale = function () { return (CFG.cost.station.underground.M || 25000) / 25000; };
   F.price = function (g, m, cars, y) { return m.price * cars * scale() * g.econ.costIndex(y || g.clock.y); };
+  // 自动购置优先用足站台长度，再比较每单位定员的车厢公里运营成本。
+  F.autoModel = function (g, rt, maxCars = rt.cars, minCapacity = 0, minCars = 1) {
+    const y = g.clock.y;
+    let best = null;
+    for (const m of F.available(g.mapId, y, g)) {
+      if (rt.kmh > 80 && m.kmh < rt.kmh) continue;
+      const cars = Math.min(maxCars, m.max);
+      if (cars < minCars || m.cap * cars < minCapacity) continue;
+      const ops = m.ops / m.cap, price = F.price(g, m, cars, y);
+      if (!best || cars > best.cars || (cars === best.cars &&
+          (ops < best.ops || (ops === best.ops && price < best.price)))) best = { m, cars, ops, price };
+    }
+    return best;
+  };
   const ageY = function (g, t) { return Math.max(0, (g.ym() - (t.bought || g.ym())) / 12); };
   F.age = ageY;
   F.overAge = (g, t) => ageY(g, t) > F.model(t.model).life;
@@ -254,7 +270,8 @@
       }
       if (nd === 1) { fp.avail[1] = fp.avail[0]; fp.units[1] = fp.units[0]; }
       if (draft && !rt.svc) {   // 预测：随线配车会把全程交路的列车补到最低需要（用推荐车型）；加开的交路由玩家配车
-        const m = F.recommend(g.mapId, y, rt.kmh, g), c = Math.min(rt.cars, m.max);
+        const fit = F.autoModel(g, rt);
+        const m = fit?.m || F.recommend(g.mapId, y, rt.kmh, g), c = fit?.cars || Math.min(rt.cars, m.max);
         for (let d = 0; d < nd; d++) { const add = Math.max(0, fp.floor - fp.avail[d]); fp.avail[d] += add; n += add; cap += add * m.cap * c; cars += add * c; ops += add * m.ops; }
         if (nd === 1) fp.avail[1] = fp.avail[0];
       }
@@ -326,7 +343,7 @@
     if (!ev.changed) return;
     if (!ev.affectedLines.size) return;
     const C = compiled || g.draftCompiled(); if (!C) return;
-    const byLine = routesOfLine(C), y = g.clock.y, have = C.routes.map(function () { return [0, 0]; });
+    const byLine = routesOfLine(C), have = C.routes.map(function () { return [0, 0]; });
     const idle = [], onSvc = new Set(), restrictions = new Map();
     const previous = routesOfLine(g.compiled || C);
     for (const t of fl.trains) {
@@ -360,13 +377,14 @@
     const adds = []; let total = 0;
     C.routes.forEach(function (rt, r) {
       if (!ev.affectedLines.has(rt.lineId) || rt.line.rail || rt.svc || onSvc.has(rt.lineId) || restrictions.has(r)) return;
-      const mdl = F.recommend(g.mapId, y, rt.kmh, g);
-      if (rt.kmh > 80 && mdl.kmh < rt.kmh) return;   // 未解锁的速度由草案确认拦截。
+      const fit = F.autoModel(g, rt);
+      if (!fit) return;   // 未解锁的速度由草案确认拦截。
+      const { m: mdl, cars, price } = fit;
       for (let d = 0; d < (rt.loop ? 2 : 1); d++) {
         let short = F.floorNeed(rt) - have[r][d]; if (short <= 0) continue;
         const use = [];
         for (let i = idle.length - 1; i >= 0 && short > 0; i--) if (idle[i].cars <= rt.cars && !tooSlow(idle[i], rt)) { use.push(idle[i].id); idle.splice(i, 1); short--; }
-        const cars = Math.min(rt.cars, mdl.max), cost = short > 0 ? F.price(g, mdl, cars, y) * short : 0;
+        const cost = short > 0 ? price * short : 0;
         adds.push({ line: rt.lineId, svc: F.svcId(rt, d), name: F.svcName(rt, d), use: use, buy: short, model: mdl.id, cars: cars, cost: cost });
         total += cost;
       }
@@ -471,14 +489,22 @@
   };
   // 分配后还差的列车：按推荐车型配齐（编组取站台允许的最长）
   F.fillCost = function (g, plan) {
-    const y = g.clock.y, rows = []; let cost = 0;
-    for (const x of plan.needs) { if (x.short <= 0) continue; const m = F.recommend(g.mapId, y, x.rt.kmh, g), cars = Math.min(x.maxCars, m.max), c = F.price(g, m, cars, y) * x.short; rows.push({ x: x, m: m, cars: cars, n: x.short, cost: c }); cost += c; }
+    const rows = [];
+    let cost = 0;
+    for (const x of plan.needs) {
+      if (x.short <= 0) continue;
+      const fit = F.autoModel(g, x.rt, x.maxCars);
+      if (!fit) continue;
+      const c = fit.price * x.short;
+      rows.push({ x, m: fit.m, cars: fit.cars, n: x.short, cost: c });
+      cost += c;
+    }
     return { rows: rows, cost: cost };
   };
   // Spend at most a quarter of the available construction budget each month.
   const autoBudget = g => g.econ.isFree() ? Infinity : (Math.max(0, g.econ.funds) + Math.max(0, g.econ.capex || 0)) / 4;
   F.buyShortfall = function (g, plan, budget = autoBudget(g)) {
-    const rows = F.fillCost(g,plan).rows.filter(r => r.x.rt.kmh <= 80 || r.m.kmh >= r.x.rt.kmh);
+    const rows = F.fillCost(g, plan).rows;
     rows.sort((a,b) => b.x.short / Math.max(1,b.x.need) - a.x.short / Math.max(1,a.x.need) || b.n - a.n);
     let count = 0, total = 0;
     for (const r of rows) {
@@ -518,11 +544,11 @@
       const rt = pos && C.routes[pos.r], svc = rt ? F.svcId(rt, pos.d) : null;
       if (rt && t.cars > rt.cars) continue;   // 短站台造成的停运不触发购车换代
       const limit = rt ? rt.cars : 8, need = rt ? rt.kmh : 80;
-      const cars = Math.min(limit, t.cars), preferred = F.recommend(g.mapId, y, need, g);
-      const fits = m => m.max >= cars && (need <= 80 || m.kmh >= need) &&
-        (!rt || tooSlow(t, rt) || t.cars > limit || m.cap * cars >= F.capOf(t));
-      const model = fits(preferred) ? preferred : F.available(g.mapId, y, g).find(fits);
-      if (!model) continue;
+      const cars = Math.min(limit, t.cars);
+      const minimum = rt && !tooSlow(t, rt) ? F.capOf(t) : 0;
+      const fit = F.autoModel(g, rt || { kmh: need }, cars, minimum, cars);
+      if (!fit) continue;
+      const model = fit.m;
       const key = JSON.stringify([t.line, svc, model.id, cars]);
       if (!groups.has(key)) groups.set(key, { line:t.line, svc, model, cars, ids:[] });
       groups.get(key).ids.push(t.id);
@@ -543,7 +569,7 @@
   };
   // 换车保持交路配属列数。先用合适的库存车，再用本月余下的购车额度。
   F.upgradeCrowdedTrains = function (g, budget = autoBudget(g)) {
-    const y = g.clock.y, routes = [];
+    const routes = [];
     for (const lid of Object.keys(g.net.lines)) {
       if (g.fleet.ops[lid]?.mode === 'manual') continue;
       for (const s of F.lineInfo(g, lid) || []) {
@@ -554,7 +580,6 @@
     routes.sort((a, b) => b.load - a.load);
     const byId = new Map(g.fleet.trains.map(t => [t.id, t]));
     const idle = g.fleet.trains.filter(t => !t.line);
-    const models = F.available(g.mapId, y, g);
     let count = 0, total = 0;
     for (const { lid, s } of routes) {
       const short = s.units.filter(t => t.cars < s.maxCars).sort((a, b) => a.cap - b.cap);
@@ -565,10 +590,9 @@
           const [car] = idle.splice(index, 1);
           car.line = lid; car.svc = s.id;
         } else {
-          const model = models.reduce((best, m) =>
-            fit(m) && m.max >= s.maxCars && m.cap * s.maxCars > t.cap && (!best || m.price < best.price) ? m : best, null);
-          if (!model || F.price(g, model, s.maxCars, y) > budget - total) continue;
-          const result = F.buy(g, lid, s.id, model.id, s.maxCars, 1, true);
+          const purchase = F.autoModel(g, s.rt, s.maxCars, t.cap + 1, t.cars + 1);
+          if (!purchase || purchase.price > budget - total) continue;
+          const result = F.buy(g, lid, s.id, purchase.m.id, purchase.cars, 1, true);
           if (!result.ok) continue;
           total += result.cost;
         }
@@ -1201,7 +1225,7 @@
       h('button', { class: 'switch' + (auto ? ' on' : ''), role: 'switch', 'aria-checked': auto ? 'true' : 'false', 'aria-label': '每月自动分配闲置列车', onclick: function () { fl.autoAlloc = !fl.autoAlloc; sfx('toggle'); self.markUnsaved(); self.rerenderPage(); } }, h('i'))));
     const autoBuy = !!fl.autoBuy;
     el.appendChild(h('div', { class:'fo-auto' }, h('span', { class:'grow' }, h('b', null, '每月自动购买缺失列车'),
-      h('small', null, '月初回收富余列车，优先调给拥挤且缺车的交路。站台限制造成的缺车只自动购买最低班次所需列车。购车共用可用建设资金的 25%。')),
+      h('small', null, '月初回收富余列车，优先调给拥挤且缺车的交路。站台限制造成的缺车只自动购买最低班次所需列车。购车优先选择站台允许的长编组，同编组优先单位运力运营成本低的车型。购车共用可用建设资金的 25%。')),
       h('button', { class:'switch' + (autoBuy ? ' on' : ''), role:'switch', 'aria-checked':autoBuy ? 'true' : 'false', 'aria-label':'每月自动购买缺失列车',
         onclick:function () { fl.autoBuy = !fl.autoBuy; sfx('toggle'); self.markUnsaved(); self.scheduleAutosave(); self.rerenderPage(); } }, h('i'))));
     if (!depot.length) el.appendChild(h('div', { class: 'note' }, '没有闲置列车。线路调整后没有归属的列车、从线路调回的列车和买入车辆段的列车停在这里。'));

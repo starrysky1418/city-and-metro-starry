@@ -2925,6 +2925,22 @@
       ctx.globalAlpha = 1;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.developmentArea?.game === g) {
+      const [x0, y0, x1, y1] = this.developmentArea.bounds;
+      const outline = [this.P(x0, y0, 0), this.P(x1 + 1, y0, 0),
+        this.P(x1 + 1, y1 + 1, 0), this.P(x0, y1 + 1, 0)];
+      ctx.save();
+      ctx.beginPath();
+      outline.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(24, 152, 135, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = '#128776';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
     // 分析图层开启时：地面加一层浅色蒙版，隐藏建筑与车辆，让图层本身清楚可读（渐变过渡）
     this.layerFade = U.clamp((this.layerFade || 0) + (layerOn ? dt : -dt) / 0.25, 0, 1);
     if (this.layerFade > 0.01 && (this.layer === 'cong' || this.layer === 'flow' || this.layer === 'station' || this.layer === 'tod' || !layerOn)) {

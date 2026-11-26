@@ -255,7 +255,7 @@
       this._impactPlan = null;
 
       this.impactReport = { status: 'done', at: [this.clock.y, this.clock.m], stable: !!res.stable,
-        base: res.base, draft: res.draft, roads: res.roads || [], roadsWorse: res.roadsWorse || [], lines: res.lines || [], stations: res.stations || [], lineLF: res.lineLF || [], hot: res.hot || [], induced: res.induced || null, cost: plan.cost || 0, summary: plan.summary || "", ops: CM.Impact ? CM.Impact.opsInputs(this, beforeC, this.compiled) : null };
+        base: res.base, draft: res.draft, roads: res.roads || [], roadsWorse: res.roadsWorse || [], lines: res.lines || [], existingLines: res.existingLines || [], surfaceCrossings: res.surfaceCrossings, noise: res.noise, stations: res.stations || [], lineLF: res.lineLF || [], hot: res.hot || [], induced: res.induced || null, cost: plan.cost || 0, summary: plan.summary || "", ops: CM.Impact ? CM.Impact.opsInputs(this, beforeC, this.compiled) : null };
       this.touch(); this.emit('trafficImpact');
     }, beforeC);
   };
@@ -379,7 +379,7 @@
     // 历史事件
     D.events.forEach((e, k) => {
       if (this.firedEvents[k]) return;
-      if (U.ymIndex(e.y, e.m) <= U.ymIndex(y, m)) { this.firedEvents[k] = 1; this.logEvent({ tag: e.tag, title: e.title, desc: e.desc + (CM.Eras ? CM.Eras.fxNote(e) : '') }); this.emit('histEvent', e); if (CM.Milestones) CM.Milestones.onEvent(this, e, k); }
+      if (U.ymIndex(e.y, e.m) <= U.ymIndex(y, m)) { this.firedEvents[k] = 1; const damage = CM.Traits?.Damage; this.logEvent({ tag: e.tag, title: e.title, desc: e.desc + (CM.Eras ? CM.Eras.fxNote(e) : '') + (damage ? damage.note(damage.apply(this, e)) : '') }); this.emit('histEvent', e); if (CM.Milestones) CM.Milestones.onEvent(this, e, k); }
     });
     // 提前布局的回报（v2.6）与片区规划变化（码头关闭后改作商务区）
     if (CM.Eras) for (const x of CM.Eras.foresightMonth(this, y, m)) {
@@ -437,8 +437,10 @@
     // 城市发展
     const acc = model.net ? model.net.acc : null;
     const econF = this.macro && CM.Macro ? CM.Macro.applyFactors(this) : null;
-    const growth = { year: yr, monthIndex: this.ym(), zoneAccess: model.zoneAccessNorm, cellWalk: acc ? acc.cellWalk : null, coverage: acc ? acc.coverage : 0, econ: econF, pull: this.metroPull() };
+    const development = CM.Development.monthPlan(this);
+    const growth = { development, year: yr, monthIndex: this.ym(), zoneAccess: model.zoneAccessNorm, cellWalk: acc ? acc.cellWalk : null, coverage: acc ? acc.coverage : 0, econ: econF, pull: this.metroPull() };
     const gr = this.jumping ? (yield* city.growMonthGen(growth)) : city.growMonth(growth);
+    CM.Development.record(this, development);
     yield;
     // 交通刷新节奏（v2.6）：见 trafficDue。不刷新的月份沿用上次的出行结果（模型年份也不变，结果仍算有效），城市发展与经营照常按月结算
     this._graphsDirty = this._graphsDirty || gr.streetsChanged;
@@ -471,6 +473,7 @@
     // 满意度按周平均日（5 个工作日 + 2 个周末日）计算，通勤时间按工作日；升级过渡期内不因统计口径变化而下降
     this.econ.updateSatisfaction(model.daily, model, y, m, { protect: this.inTransition(this.ym()) });
     this.econ.openMonth(y, m);
+    CM.Development.settleProperty(this);
     if (model.trafficReady()) this.tasks.rebaseCongestion(this);
     this.tasks.monthly(this).forEach((o) => this.logTask(o));
     if(model.hasReviewWork()){yield* model.solveReviewsGen();this.tasks.monthly(this).forEach(o=>this.logTask(o));}
@@ -687,7 +690,7 @@
     const before = this.net.segments[s.id];
     if (!before) return !s.base?.length;
     if (before.a !== s.a || before.b !== s.b || before.line !== s.line) return false;
-    return ['type', 'transition', 'tunnel', 'pts', 'curve', 'speed'].some(key => JSON.stringify(before[key]) !== JSON.stringify(s[key])) ||
+    return ['type', 'transition', 'tunnel', 'pts', 'curve', 'speed', 'noiseBarrier'].some(key => JSON.stringify(before[key]) !== JSON.stringify(s[key])) ||
       M.segmentGrade(this.net, before).kmh !== M.segmentGrade(this.draft.net, s).kmh;
   };
   Game.prototype.draftPhase = function (ids) {
@@ -1088,6 +1091,8 @@
       net: this.net, railConcession: this.railConcession || undefined,
       econ: this.econ.serialize(),
       tasks: this.tasks.serialize(),
+      development: this.development || undefined,
+      propertyContracts: this.propertyContracts?.length ? this.propertyContracts : undefined,
       corp: this.corp || undefined,   // 地铁公司的政府合同：招标、履约中与已结束的合同、履约信誉（v2.5）
       fleet: this.fleet || undefined,   // 车队：列车（车型、编组、购置年月与价格、配属线路与交路）与各线运营模式（v2.5）
       speedPeakKm: this.speedPeakKm || undefined,
@@ -1153,6 +1158,9 @@
       g.econ = CM.Economy.restore(s.econ);
       g.model.fare = g.econ.fare;
       g.tasks = CM.Tasks.restore(s.tasks);
+      g.development = CM.Development.restore(s.development, g.city);
+      g.propertyContracts = CM.Development.restoreContracts(s.propertyContracts, g.city);
+      if (g.development?.propertyId && !g.propertyContracts.some(q => q.id === g.development.propertyId)) delete g.development.propertyId;
       g.corp = s.corp && Array.isArray(s.corp.contracts) ? s.corp : null;
       g.fleet = s.fleet && Array.isArray(s.fleet.trains) ? s.fleet : null;
       g.speedPeakKm = s.speedPeakKm || 0;

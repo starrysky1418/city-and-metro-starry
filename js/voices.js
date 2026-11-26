@@ -76,6 +76,14 @@
     for (let z = 0; z < m.Z; z++) if (m.zPop[z] > 6000 && (acc.zCov[z] || 0) < 0.15 && canSuggest(m.zCx[z], m.zCy[z])) gaps.push(z);
     gaps.sort(function (a, b) { return m.zPop[b] - m.zPop[a]; });
     for (const z of gaps.slice(0, 3)) { const p = g.zoneName(z, canSuggest).replace(/（(.*?)）/, '$1').replace(/^片区(?=.+)|一带$/g, ''); post('bad', 'cover', fill(say(SAY.cover, z + ym), { p: p }), m.zPop[z], { zone: z }, ['覆盖'], p, null, ['cover'], { p: p, pop: m.zPop[z], near: nearSt(z) }); }
+    const noisy = CM.Noise.current(m).segments.filter(s => s.people >= 500).sort((a,b) => b.people - a.people);
+    for (const s of noisy.slice(0, 2)) {
+      const seg = g.net.segments[s.id], line = g.net.lines[s.line];
+      if (!seg || !line) continue;
+      const place = g.net.stations[seg.a].name + '—' + g.net.stations[seg.b].name;
+      post('bad', 'noise', line.name + '「' + place + '」靠近住宅，预计约 ' + U.fmtPeople(s.people) + ' 名居民受列车噪声影响。' + (s.nightShare >= 0.35 ? '夜间班次对影响较大。' : ''),
+        s.people, { point: [s.x, s.y] }, ['噪声'], place);
+    }
     // 新开车站（近 6 个月）
     const fresh = [];
     C.stations.forEach(function (s, i) { const st = g.net.stations[s.id]; if (st && st.built && ym - U.ymIndex(st.built[0], st.built[1]) <= 6 && C.serviced[i]) fresh.push(i); });
@@ -282,6 +290,7 @@
       if (!at) return null;
       return then(function () {
         if (at.station) { const s = g.net.stations[at.station]; if (s) { self.select({ kind: 'station', id: at.station }); self.flyTo(s.x, s.y, Math.max(self.R.cam.zoom, 22)); } }
+        else if (at.point) self.locatePoint(at.point[0], at.point[1], '列车噪声', 1);
         else if (at.zone != null) self.locateZone(at.zone);
         else if (at.line) self.openPage('line', at.line);
         else if (at.fac) { const f = CM.Fac.byId(at.fac); if (f) { self.select({ kind: 'facility', id: f.id }); self.locatePoint(f.x, f.y, f.name, Math.max(0.8, f.r), 3); } }

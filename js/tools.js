@@ -25,6 +25,10 @@
     if (this.tool === t) return;
     this.cancelDrag();
     if (this.ui.closeLinePicker) this.ui.closeLinePicker();
+    if (this.developmentPick) {
+      this.developmentPick = null;
+      this.R.developmentArea = null;
+    }
     this.hillEntrancePick = null;
     this.tool = t;
     this.transitionPoint = null; this.placingTransition = false;
@@ -142,7 +146,7 @@
     if (p.orbit && p.moved) return;   // 拖动旋转结束，不当作点击
     if (p.button === 2) { this.onRight(e); return; }
     // 选择工具下点击行驶中的列车：进入跟随模式（车站优先）
-    if (p.button === 0 && !p.moved && this.tool === 'select' && CM.Follow && !this.R.pickStation(e.clientX, e.clientY)) { const tr = CM.Follow.pick(e.clientX, e.clientY); if (tr) { CM.Follow.start(tr); return; } }
+    if (p.button === 0 && !p.moved && !this.developmentPick && this.tool === 'select' && CM.Follow && !this.R.pickStation(e.clientX, e.clientY)) { const tr = CM.Follow.pick(e.clientX, e.clientY); if (tr) { CM.Follow.start(tr); return; } }
     if (p.button === 0 && !p.moved) this.onClick(e.clientX, e.clientY, e.shiftKey || e.altKey, e.ctrlKey || e.metaKey || e.shiftKey);
   };
 
@@ -553,6 +557,29 @@
   Tools.prototype.onClick = function (sx, sy, mod, multiKey) {
     const g = this.game(), R = this.R;
     if (g.jumping) return;
+    if (this.developmentPick) {
+      const pick = this.developmentPick;
+      if (pick.game !== g) { this.developmentPick = null; return; }
+      const { x, y } = this.world(sx, sy, 0);
+      const i = Math.floor(x), j = Math.floor(y);
+      if (i < 0 || j < 0 || i >= g.city.W || j >= g.city.H) {
+        this.ui.toast('请在地图范围内选地', 'info');
+        return;
+      }
+      if (!pick.first) {
+        pick.first = [i, j];
+        R.developmentArea = { game: g, bounds: [i, j, i, j] };
+        this.ui.toast('点击地块的对角，按 Esc 取消', 'info');
+        return;
+      }
+      const [a, b] = pick.first;
+      const bounds = [Math.min(a, i), Math.min(b, j), Math.max(a, i), Math.max(b, j)];
+      this.developmentPick = null;
+      R.developmentArea = { game: g, bounds };
+      this.ui.developmentDraft = { game: g, bounds, type: 'mixed' };
+      this.ui.openPage('development', 'project', { root: true });
+      return;
+    }
     if (this.hillEntrancePick) {
       const pick = this.hillEntrancePick;
       this.hillEntrancePick = null;
@@ -866,6 +893,13 @@
     }
     if (!g || this.ui.blocking()) { this.keys.clear(); this.keyMods = {}; if (e.key === 'Escape') this.ui.escape(); return; }
     const esc = e.key === 'Escape';
+    if (esc && this.developmentPick) {
+      this.developmentPick = null;
+      this.R.developmentArea = null;
+      this.ui.openPage('development', 'project', { root: true });
+      e.preventDefault();
+      return;
+    }
     if (esc && this.hillEntrancePick) { this.hillEntrancePick = null; this.ui.renderPage?.(); e.preventDefault(); return; }
     if (esc) {
       e.preventDefault();

@@ -278,7 +278,7 @@
       if (rg0.scenic && !lk) { hillC += ds; if (!hillHit) hillHit = [mx, my, rg0.name]; }
       else if (lk) {
         const rg = city.regions[city.lockRegion(c)];
-        if (!locked.some(function (l) { return l.name === rg.name; })) locked.push({ x: mx, y: my, name: rg.name, open: city.lockState().year[c] || null, lockNote: rg.lockNote });
+        if (!rg.passOnly && !locked.some(function (l) { return l.name === rg.name; })) locked.push({ x: mx, y: my, name: rg.name, open: city.lockState().year[c] || null, lockNote: rg.lockNote });
       } else if (city.lu[c] === LU.AIRPORT) {
         if (airOk) { airC += ds; if (!airHit) airHit = [mx, my]; }
         else if (!locked.some(function (l) { return l.open === D.airport.closeYear; })) locked.push({ x: mx, y: my, name: (D.airport.name || '机场') + '（运营中）', open: D.airport.closeYear });
@@ -819,6 +819,7 @@
     net.segments[g2] = { id: g2, line: seg.line, a: sid, b: seg.b, pts: after, type: seg.type, base: base };
     if (curve) net.segments[g1].curve = net.segments[g2].curve = curve;
     if (seg.speed) net.segments[g1].speed = net.segments[g2].speed = seg.speed;
+    if (seg.noiseBarrier) net.segments[g1].noiseBarrier = net.segments[g2].noiseBarrier = true;
     const cp = function (list, rev) { const out = list.map(function (p) { return [p[0], p[1]]; }); return rev ? out.reverse() : out; };
     for (const c of co) {
       const m = net.segments[c.id]; if (!m) continue;
@@ -829,6 +830,7 @@
       net.segments[x2] = { id: x2, line: m.line, a: sid, b: m.b, pts: cp(c.rev ? before : after, c.rev), type: m.type, base: mb };
       if (curve) net.segments[x1].curve = net.segments[x2].curve = curve;
       if (m.speed) net.segments[x1].speed = net.segments[x2].speed = m.speed;
+      if (m.noiseBarrier) net.segments[x1].noiseBarrier = net.segments[x2].noiseBarrier = true;
     }
     // 插入的车站按所在轨道设站台（地下轨道上为地下站台）；绘线接入的新线路另设自己的站台层（天地换乘）
     if (seg.type !== net.stations[sid].type) {
@@ -872,6 +874,7 @@
             notes.push((ln ? ln.name + ' ' : '') + A.name + '—' + B.name + ' 两侧建设方式不同，合并后统一为' + CFG.metro.typeName[type] + '，原' + CFG.metro.typeName[other] + '部分按改建计费');
           }
           net.segments[id] = { id: id, line: lid, a: o1, b: o2, pts: p1.concat([[st.x, st.y]], p2), type: type, base: Array.from(new Set(base)) };
+          if (s1.noiseBarrier && s2.noiseBarrier) net.segments[id].noiseBarrier = true;
           if (s1.speed || s2.speed) net.segments[id].speed = Math.min(M.segmentGrade(net, s1).kmh, M.segmentGrade(net, s2).kmh);
           if (s1.curve && s1.curve === s2.curve) net.segments[id].curve = s1.curve;
         }
@@ -1492,6 +1495,7 @@
       trackGrades.set(key, Math.max(trackGrades.get(key) || 0, M.segmentGrade(off, s).track));
     }
     for (const lid in draft.lines) if (off.lines[lid] && M.lineKmh(off.lines[lid]) !== M.lineKmh(draft.lines[lid])) respeed.add(lid);
+    const paidBarriers = new Set(Object.values(off.segments).filter(s => s.noiseBarrier).map(M.trackKey));
     for (const id in draft.segments) {
       const s = draft.segments[id];
       const g = M.segGeom(draft, s, city);
@@ -1533,6 +1537,18 @@
             item('demolition', '沿线拆迁 ' + lbl, dm.cost, id);
             res.demolitions.push.apply(res.demolitions, dm.cells);
             res.affectedLines.add(s.line); touched.add(id); gr.changed = true; gr.retyped = true;
+          }
+        }
+      }
+      if (s.noiseBarrier && !(base?.length && base.every(id => off.segments[id].noiseBarrier))) {
+        const key = M.trackKey(s);
+        if (!paidBarriers.has(key)) {
+          const fee = CM.Noise.cost(s, g, year);
+          if (fee > 0) {
+            item('upgrade', '增设隔音屏 · ' + lbl, fee, id);
+            paidBarriers.add(key);
+            res.affectedLines.add(s.line);
+            res.changes.mod.push('增设隔音屏 · ' + lbl);
           }
         }
       }

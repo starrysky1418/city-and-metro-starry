@@ -11,7 +11,7 @@
   //   v2.5：车站商业（TOD）运营成本 todCost · 政府合同收入 ppp（建设补助、可用性付费、客流保底、退还保证金）· 合同支出 pppOut（保证金、地价、超额分成、违约金）
   function blankMonth(y, m, funds, capex) {
     return { y: y, m: m, start: funds, grant: 0, fare: 0, construction: 0, demolition: 0, upgrade: 0, relocation: 0, ops: 0, reward: 0,
-      bond: 0, interest: 0, principal: 0, penalty: 0, capexUse: 0, capexStart: capex || 0, days: 0, wdDays: 0, weDays: 0, end: funds, commerce: 0, todCost: 0, ppp: 0, pppOut: 0, fleetSale: 0 };
+      bond: 0, interest: 0, principal: 0, penalty: 0, capexUse: 0, capexStart: capex || 0, days: 0, wdDays: 0, weDays: 0, end: funds, commerce: 0, todCost: 0, ppp: 0, pppOut: 0, fleetSale: 0, propertyIncome: 0, propertyInvest: 0, propertyCost: 0 };
   }
   const BUILD_KINDS = ['construction', 'demolition', 'upgrade', 'relocation'];
   const MONEY_EPS = 1e-7;   // 内部单位是万元；只忽略浮点误差，不能把不足 0.5 万的真实债务清零
@@ -168,6 +168,8 @@
       const c = this.cur, when = { y: c.y, m: c.m, d: U.daysInMonth(c.y, c.m) };
       if (c.fare > 0.5) this.log('fare', c.fare, 'gen', '本月票款（' + c.days + ' 天' + (c.wdDays || c.weDays ? '：' + (c.wdDays || 0) + ' 个工作日、' + (c.weDays || 0) + ' 个周末日' : '') + '）', when);
       if (c.commerce > 0.5) this.log('commerce', c.commerce, 'gen', '本月车站商业收入（广告与租金）', when);
+      if (c.propertyIncome > 0.5) this.log('property', c.propertyIncome, 'gen', '本月站城物业分成与租金', when);
+      if (c.propertyCost > 0.5) this.log('property', -c.propertyCost, 'gen', '本月站城物业维护', when);
       if (c.todCost > 0.5) this.log('ops', -c.todCost, 'gen', '本月车站商业运营与维护成本', when);
       if (c.ops > 0.5) this.log('ops', -c.ops, 'gen', '本月运营成本（' + c.days + ' 天）', when);
     }
@@ -190,6 +192,12 @@
     const burden = daily.metro > 1 ? daily.avgFare / (vot * 0.35) : 0;
     f.push({ label: '票价负担（平均 ' + U.cur(daily.avgFare).toFixed(U.cur(daily.avgFare) < 10 ? 2 : 1) + ' ' + CFG.money.unit + '）', v: -9 * U.clamp((burden - 1) / 2, 0, 1) });
     f.push({ label: '车厢拥挤（周平均超载客公里 ' + U.fmtPct(daily.crowdShare, 0) + '）', v: -9 * U.clamp(daily.crowdShare / 0.25, 0, 1) });
+    const noise = CM.Noise && model?.net ? CM.Noise.current(model) : null;
+    if (noise?.people > 0) {
+      const pop = model.city.pop.reduce((sum, n) => sum + n, 0);
+      f.push({ label: '沿线列车噪声（约 ' + U.fmtPeople(noise.people) + ' 人受明显影响）',
+        v: -Math.min(3, 55 * noise.severity / Math.max(1, pop)) });
+    }
     const ym = U.ymIndex(y, m);
     for (const md of this.mods) if (md.kind === 'sat' && md.until >= ym) f.push({ label: md.reason, v: md.delta });
     // 历史事件的满意度效果（v2.2，如大型国际活动），按时间计算
@@ -478,7 +486,7 @@
       if (seq) e.bondSeq = Math.max(e.bondSeq, Number(seq[1]) + 1);
     }
     // 旧存档的账本没有新科目：补零，保证收支汇总不出现 NaN
-    for (const r of e.ledger.concat([e.cur])) for (const k of ['bond', 'interest', 'principal', 'penalty', 'capexUse', 'commerce', 'todCost', 'ppp', 'pppOut', 'fleetSale']) if (r[k] == null) r[k] = 0;
+    for (const r of e.ledger.concat([e.cur])) for (const k of ['bond', 'interest', 'principal', 'penalty', 'capexUse', 'commerce', 'todCost', 'ppp', 'pppOut', 'fleetSale', 'propertyIncome', 'propertyInvest', 'propertyCost']) if (r[k] == null) r[k] = 0;
     return e;
   };
   // 票价（v2.1 第二轮）：统一票价 { mode: 'flat', flat } 或按里程计费 { mode: 'dist', flat 起步价, km0 起步里程, step 每段公里, inc 每段加价, cap 封顶（0 不封顶） }。

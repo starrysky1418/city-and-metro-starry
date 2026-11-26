@@ -9,6 +9,7 @@
   // p：吸引的出行目的及比例；we：周末相对该目的平均水平的吸引倍数；L：距离衰减长度相对 distDecayHO 的倍数；r：默认场地半径（格）
   const TYPES = {
     rail: { name: '铁路客运站', icon: 'train', p: { hb: 1 }, hub: true, we: 1, L: 0, r: 0.6, group: '交通枢纽' },
+    port: { name: '客运码头', icon: 'ferry', p: { hb: 1 }, hub: true, we: 1, L: 0, r: 0.8, group: '交通枢纽' },   // 邮轮与客运码头（v3.1）
     air: { name: '机场', icon: 'plane', p: { hb: 1 }, hub: true, we: 1, L: 0, r: 1.2, group: '交通枢纽' },
     uni: { name: '大学', icon: 'school', p: { sc: 1 }, we: 3, L: 1.8, r: 1.0, group: '教育' },
     hosp: { name: '医院', icon: 'hospital', p: { md: 1 }, we: 1, L: 1.8, r: 0.5, group: '医疗' },
